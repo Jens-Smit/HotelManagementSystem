@@ -18,7 +18,12 @@ class AvailabilitySnapshot
     private ?int $id = null;
 
     #[ORM\ManyToOne(targetEntity: Room::class)]
-    #[ORM\JoinColumn(nullable: false)]
+    #[ORM\JoinColumn(
+        name: 'room_id',           // Expliziter Name
+        referencedColumnName: 'id', // Referenz auf 'id'
+        nullable: false, 
+        columnDefinition: 'BINARY(16)' // Zwingt MySQL zu BINARY(16) für die UUID
+    )]
     #[Assert\NotBlank]
     private Room $room;
 
