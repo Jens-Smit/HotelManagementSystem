@@ -206,7 +206,7 @@ class PostControllerTest extends WebTestCase
 
     public function testGetPostByIdReturns404WhenNotFound(): void
     {
-        $this->client->request('GET', '/api/posts/99999');
+        $this->client->request('GET', '/api/posts/00000000-0000-0000-0000-000000000000');
 
         $this->assertSame(Response::HTTP_NOT_FOUND, $this->client->getResponse()->getStatusCode());
         
@@ -287,7 +287,7 @@ class PostControllerTest extends WebTestCase
     {
         $user = $this->createAndPersistUser();
         $this->client->loginUser($user);
-
+        $invalidId = '00000000-0000-0000-0000-000000000000';
         $tmp = tempnam(sys_get_temp_dir(), 'upl');
         file_put_contents($tmp, 'dummy');
         $uploaded = new UploadedFile($tmp, 'title.png', 'image/png', null, true);
@@ -298,7 +298,7 @@ class PostControllerTest extends WebTestCase
             [
                 'title' => 'Test Post',
                 'content' => 'Content',
-                'categoryId' => 99999 // Nicht existierende Kategorie
+                'categoryId' => $invalidId // Nicht existierende Kategorie
             ],
             ['titleImage' => $uploaded],
             ['CONTENT_TYPE' => 'multipart/form-data']
@@ -431,7 +431,7 @@ class PostControllerTest extends WebTestCase
 
         $this->client->request(
             'POST',
-            '/api/posts/99999',
+            '/api/posts/00000000-0000-0000-0000-000000000000',
             [],
             [],
             ['CONTENT_TYPE' => 'application/json'],
@@ -500,7 +500,7 @@ class PostControllerTest extends WebTestCase
         $user = $this->createAndPersistUser();
         $this->client->loginUser($user);
 
-        $this->client->request('DELETE', '/api/posts/99999');
+        $this->client->request('DELETE', '/api/posts/00000000-0000-0000-0000-000000000000');
 
         $this->assertSame(Response::HTTP_NOT_FOUND, $this->client->getResponse()->getStatusCode());
     }

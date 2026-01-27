@@ -67,5 +67,10 @@ jobs:
       - name: Load fixtures
         run: php bin/console doctrine:fixtures:load --env=test --no-interaction
 
+      - name: Generate JWT Keys
+        run: |
+          mkdir -p config/jwt
+          php bin/console lexik:jwt:generate-keypair --overwrite --no-interaction
+          
       - name: Run PHPUnit tests
         run: php bin/phpunit
