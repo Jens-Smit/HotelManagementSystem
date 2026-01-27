@@ -35,7 +35,13 @@ jobs:
           extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, pdo_mysql
           coverage: none
 
-      - name: Copy .env.test.local
+      - name: Create default .env
+        run: |
+          cp .env.example .env
+          echo "APP_ENV=test" >> .env
+
+      
+      - name: Setup test env
         run: |
           cp .env.test .env.test.local
           echo "DATABASE_URL=mysql://root:root@127.0.0.1:3306/hms_test?serverVersion=8.0" >> .env.test.local
