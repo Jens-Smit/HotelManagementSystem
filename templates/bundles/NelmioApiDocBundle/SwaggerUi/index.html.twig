@@ -1,10 +1,8 @@
-{# templates/bundles/NelmioApiDocBundle/SwaggerUi/index.html.twig #}
 <!DOCTYPE html>
-<html lang="de">
+<html>
 <head>
     <meta charset="UTF-8">
-    <title>{{ title|default('API Documentation') }}</title>
-
+    <title>API Documentation</title>
     <link rel="stylesheet" type="text/css" href="{{ asset('swagger-ui/swagger-ui.css') }}">
     <style>
         html { box-sizing: border-box; overflow-y: scroll; }
@@ -18,8 +16,16 @@
 <script src="{{ asset('swagger-ui/swagger-ui-bundle.js') }}"></script>
 <script src="{{ asset('swagger-ui/swagger-ui-standalone-preset.js') }}"></script>
 <script src="{{ asset('swagger-ui/init-swagger-ui.js') }}"></script>
+
 <script>
-    loadSwaggerUI();
+    window.onload = function() {
+        // Falls loadSwaggerUI nicht gefunden wird, fangen wir das ab
+        if (typeof loadSwaggerUI === 'function') {
+            loadSwaggerUI();
+        } else {
+            console.error("Swagger UI konnte nicht geladen werden.");
+        }
+    };
 </script>
 </body>
 </html>

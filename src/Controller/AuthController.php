@@ -22,9 +22,12 @@ use Gesdinet\JWTRefreshTokenBundle\Generator\RefreshTokenGeneratorInterface;
 use Gesdinet\JWTRefreshTokenBundle\Model\RefreshTokenManagerInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
+use Psr\Log\LoggerInterface;
 
 class AuthController extends AbstractController
 {
+    private LoggerInterface $logger;
+
     public function __construct(
         private readonly AuthService $authService,
         private readonly PasswordService $passwordService,
@@ -34,11 +37,14 @@ class AuthController extends AbstractController
         private readonly RefreshTokenManagerInterface $refreshTokenManager,
         private readonly RefreshTokenGeneratorInterface $refreshTokenGenerator,
         private readonly EntityManagerInterface $em,
+        LoggerInterface $logger,
         #[\Symfony\Component\DependencyInjection\Attribute\Autowire(service: 'limiter.login_limiter')]
         private readonly RateLimiterFactory $loginLimiter,
         #[\Symfony\Component\DependencyInjection\Attribute\Autowire(service: 'limiter.password_reset_limiter')]
         private readonly RateLimiterFactory $passwordResetLimiter,
-    ) {}
+    ) {
+        $this->logger = $logger;
+    }
 
     #[Route("/api/login", name: "api_login", methods: ["POST"])]
     #[OA\Post(
@@ -79,12 +85,13 @@ class AuthController extends AbstractController
     {
         $limiter = $this->loginLimiter->create($request->getClientIp());
         if (!$limiter->consume(1)->isAccepted()) {
+            $data = json_decode($request->getContent(), true);
             // ✅ Log suspicious activity
             $this->logger->warning('Rate limit exceeded for IP', [
                 'ip' => $request->getClientIp(),
                 'email' => $data['email'] ?? 'unknown'
             ]);
-            
+
             return new JsonResponse([
                 'error' => 'Zu viele Versuche',
                 'retry_after' => $limiter->consume(0)->getRetryAfter()->getTimestamp()
@@ -143,7 +150,7 @@ class AuthController extends AbstractController
     {
         $refreshTokenString = $request->cookies->get('refresh_token');
         if ($refreshTokenString) {
-            $refreshToken = $this->refreshTokenManager->get($refreshTokenString);
+            $refreshToken = $refreshTokenString ? $this->refreshTokenManager->get((string) $refreshTokenString) : null;
             if ($refreshToken) {
                 $this->refreshTokenManager->delete($refreshToken);
             }
@@ -235,6 +242,7 @@ class AuthController extends AbstractController
         try {
             $this->passwordService->requestPasswordReset($data['email']);
         } catch (\Throwable) {
+            // We intentionally don't show errors to prevent email enumeration
         }
 
         return new JsonResponse(['message' => 'Falls die E-Mail existiert, wurde eine Reset-E-Mail versendet.'], 200);
@@ -315,7 +323,7 @@ class AuthController extends AbstractController
         }
 
         try {
-            $this->passwordService->changePassword($user, $data['currentPassword'], $data['newPassword']);
+            $this->passwordService->changePassword($user instanceof UserInterface ? $user : null, $data['currentPassword'], $data['newPassword']);
             return new JsonResponse(['message' => 'Passwort erfolgreich geändert.'], 200);
         } catch (BadRequestHttpException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);

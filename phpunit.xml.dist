@@ -10,7 +10,8 @@
     <php>
         <env name="APP_ENV" value="test"/>
         <env name="CORS_ALLOW_ORIGIN" value="*"/>
-        <env name="DATABASE_URL" value="mysql://root:@127.0.0.1:3306/test_blog"/>
+        <env name="DATABASE_URL" value="sqlite:///%kernel.project_dir%/var/test.db"/>
+        <env name="LOCK_DSN" value="flock://%kernel.project_dir%/var/lock"/>
         <server name="KERNEL_CLASS" value="App\Kernel"/>
         <!-- <server name="KERNEL_CLASS" value="App\\Kernel"/> -->
     </php>

@@ -1,0 +1,23 @@
+# config/packages/nelmio_security.yaml
+nelmio_security:
+    clickjacking:
+        paths:
+            '^/.*': DENY
+    content_type:
+        nosniff: true
+    referrer_policy:
+        enabled: true
+        policies:
+            - 'no-referrer'
+            - 'strict-origin-when-cross-origin'
+            
+    # Hier die vereinfachte CSP-Config OHNE nonce_generator
+    csp:
+        enforce:
+            level1_fallback: true
+            browser_adaptive: true
+            default-src: [ 'self' ]
+            # Wir erlauben 'unsafe-inline' explizit, damit Swagger ohne Nonce läuft
+            script-src: [ 'self', 'unsafe-inline' ]
+            style-src: [ 'self', 'unsafe-inline' ]
+            img-src: [ 'self', 'data:', 'https://validator.swagger.io' ]

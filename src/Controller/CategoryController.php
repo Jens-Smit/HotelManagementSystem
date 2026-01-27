@@ -15,7 +15,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 // Verwende Symfony\Component\Routing\Attribute\Route
-use Symfony\Component\Routing\Attribute\Route; 
+use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\SerializerInterface;
 // Importiere Doctrine Collections für die korrekte Typhinweis
 use Doctrine\Common\Collections\Collection;
@@ -55,7 +55,7 @@ class CategoryController extends AbstractController
     public function index(Request $request, EntityManagerInterface $em, SerializerInterface $serializer): JsonResponse
     {
         $parentId = $request->query->get('parentId');
-        
+
         if ($parentId !== null) {
             if ($parentId === 'null' || $parentId === '') {
                 $categories = $em->getRepository(Category::class)->findBy(['parent' => null]);
@@ -69,11 +69,11 @@ class CategoryController extends AbstractController
         } else {
             $categories = $em->getRepository(Category::class)->findAll();
         }
-        
+
         $json = $serializer->serialize($categories, 'json', [
-            'groups' => ['category:read'] 
+            'groups' => ['category:read']
         ]);
-        
+
         return new JsonResponse($json, Response::HTTP_OK, [], true);
     }
 
@@ -110,7 +110,7 @@ class CategoryController extends AbstractController
         }
         // Beibehalten des Serializer-Aufrufs mit Gruppen
         $json = $serializer->serialize($category, 'json', ['groups' => 'category:read']);
-        
+
         return new JsonResponse($json, Response::HTTP_OK, [], true);
     }
 
@@ -141,7 +141,7 @@ class CategoryController extends AbstractController
                         new OA\Property(property: "postCount", type: "integer"),
                         // Die 'children' Property kann rekursiv definiert werden,
                         // aber für eine einfache Darstellung lassen wir sie generisch.
-                        new OA\Property(property: "children", type: "array", items: new OA\Items(type: "object")) 
+                        new OA\Property(property: "children", type: "array", items: new OA\Items(type: "object"))
                     ]
                 ))
             ),
@@ -196,7 +196,7 @@ class CategoryController extends AbstractController
             $cat = $map[$cid]['entity'];
             $children = [];
             foreach ($map[$cid]['children'] as $childId) {
-                $children[] = $buildNode($childId);
+                $children[] = $buildNode((int) $childId);
             }
             return [
                 'id' => $cat->getId(),
@@ -209,12 +209,11 @@ class CategoryController extends AbstractController
 
         $tree = [];
         foreach ($startIds as $sid) {
-            $tree[] = $buildNode($sid);
+            $tree[] = $buildNode((int) $sid);
         }
 
         return new JsonResponse($tree);
     }
-
 
     // --- 4. KATEGORIE ERSTELLEN (POST /api/categories) ---
     #[Route('/api/categories', name: 'create_category', methods: ['POST'])]
@@ -256,7 +255,7 @@ class CategoryController extends AbstractController
             $category->setName($dto->name);
 
             if ($dto->parentId) {
-                $parent = $em->getRepository(Category::class)->find($dto->parentId);
+                $parent = $em->getRepository(Category::class)->find((int) $dto->parentId);
                 if (!$parent) {
                     return new JsonResponse(['error' => 'Parent-Kategorie nicht gefunden'], 400);
                 }
@@ -310,7 +309,7 @@ class CategoryController extends AbstractController
     )]
     public function update(int $id, Request $request, EntityManagerInterface $em): JsonResponse
     {
-        $category = $em->getRepository(Category::class)->find($id);
+        $category = $em->getRepository(Category::class)->find((int) $id);
         if (!$category) {
             return new JsonResponse(['error' => 'Kategorie nicht gefunden'], 404);
         }
@@ -334,12 +333,12 @@ class CategoryController extends AbstractController
                     return new JsonResponse(['error' => 'Eine Kategorie kann nicht ihr eigenes Parent sein'], 400);
                 }
 
-                $parent = $em->getRepository(Category::class)->find($dto->parentId);
+                $parent = $em->getRepository(Category::class)->find((int) $dto->parentId);
                 if (!$parent) {
                     return new JsonResponse(['error' => 'Parent-Kategorie nicht gefunden'], 400);
                 }
                 // ... (Logik zur Zirkelbezugsprüfung bleibt unverändert) ...
-                
+
                 $current = $parent;
                 while ($current !== null) {
                     if ($current->getId() === $category->getId()) {
@@ -349,7 +348,7 @@ class CategoryController extends AbstractController
                 }
 
                 $category->setParent($parent);
-                
+
                 // Wegen des Lazy Loading muss die rekursive Funktion alle Kinder initialisieren, damit die Schleife funktioniert.
                 $this->initializeCategoryChildren([$category]);
 
@@ -360,17 +359,17 @@ class CategoryController extends AbstractController
                     }
                     // Wegen Lazy Loading muss getCategories() initialisiert werden
                     foreach ($cat->getCategories() as $child) {
-                        if ($checkCircular($child, $targetId)) {
+                        if ($checkCircular($child, (int) $targetId)) {
                             return true;
                         }
                     }
                     return false;
                 };
 
-                // Die Prüfung muss von der *aktuellen* Kategorie ($category) ausgehen und prüfen, 
+                // Die Prüfung muss von der *aktuellen* Kategorie ($category) ausgehen und prüfen,
                 // ob der *neue Parent* ($dto->parentId) in der Nachfolgerkette liegt.
                 // Wenn $parent ein Kind von $category ist, ist es ein Zirkelbezug.
-                if ($checkCircular($category, $dto->parentId)) {
+                if ($checkCircular($category, (int) $dto->parentId)) {
                     return new JsonResponse(['error' => 'Zirkelbezug erkannt: Parent-Kategorie kann keine Unterkategorie sein (oder umgekehrt)'], 400);
                 }
 
@@ -422,7 +421,7 @@ class CategoryController extends AbstractController
     )]
     public function delete(int $id, Request $request, EntityManagerInterface $em): JsonResponse
     {
-        $category = $em->getRepository(Category::class)->find($id);
+        $category = $em->getRepository(Category::class)->find((int) $id);
         if (!$category) {
             return new JsonResponse(['error' => 'Kategorie nicht gefunden'], 404);
         }
@@ -430,6 +429,8 @@ class CategoryController extends AbstractController
         $force = $request->query->get('force', false);
         if (is_string($force)) {
             $force = filter_var($force, FILTER_VALIDATE_BOOLEAN);
+        } elseif (is_int($force)) {
+            $force = (bool) $force;
         }
 
         // ... (Logik zur Überprüfung von Unterkategorien und Posts bleibt unverändert) ...
@@ -484,7 +485,6 @@ class CategoryController extends AbstractController
         }
     }
 
-
     /**
      * Hilfsmethode zum rekursiven Löschen von Kategorien (Posts und Kinder zuerst)
      */
@@ -511,7 +511,7 @@ class CategoryController extends AbstractController
         $order = [];
         $visit = function(int $cid) use (&$visit, &$order, $map) {
             foreach ($map[$cid]['children'] as $childId) {
-                $visit($childId);
+                $visit((int) $childId);
             }
             $order[] = $cid;
         };
@@ -520,7 +520,7 @@ class CategoryController extends AbstractController
         if (!isset($map[$rootId])) {
             return;
         }
-        $visit($rootId);
+        $visit((int) $rootId);
 
         if (empty($order)) {
             return;
@@ -553,7 +553,7 @@ class CategoryController extends AbstractController
             // 4) Entferne Kategorien in Post-Order (Kinder zuerst)
             foreach ($order as $cid) {
                 // referenzieren statt laden, spart Memory
-                $ref = $em->getReference(Category::class, $cid);
+                $ref = $em->getReference(Category::class, (int) $cid);
                 $em->remove($ref);
             }
 
@@ -573,7 +573,6 @@ class CategoryController extends AbstractController
             throw $e instanceof ORMException ? $e : new \RuntimeException('Fehler beim Löschen der Kategorie', 0, $e);
         }
     }
-
 
     /**
      * Hilfsmethode zur Initialisierung von Lazy Collections
@@ -596,7 +595,7 @@ class CategoryController extends AbstractController
                     // Leere Schleife, nur zur Initialisierung
                 }
             }
-            
+
             // Rekursiv für alle Kinder
             $this->initializeCategoryChildren($categoriesCollection->toArray());
         }

@@ -387,7 +387,7 @@ class PostControllerTest extends WebTestCase
             ])
         );
 
-        $this->assertSame(402, $this->client->getResponse()->getStatusCode());
+        $this->assertSame(Response::HTTP_BAD_REQUEST, $this->client->getResponse()->getStatusCode());
     }
 
     public function testUpdatePostFailsWhenNotAuthor(): void

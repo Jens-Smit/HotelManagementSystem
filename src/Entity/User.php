@@ -9,9 +9,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use DateTimeImmutable;
-use OpenApi\Attributes as OA; 
-
-
+use OpenApi\Attributes as OA;
 
 #[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\Table(name: '`user`')]
@@ -26,6 +24,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(length: 180, unique: true)]
     private ?string $email = null;
 
+    /**
+     * @var string[]
+     */
     #[ORM\Column]
     private array $roles = [];
 
@@ -46,11 +47,10 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\OneToMany(mappedBy: 'author', targetEntity: Post::class, orphanRemoval: true)]
     private Collection $posts;
 
-   
     public function __construct()
     {
         $this->posts = new ArrayCollection();
-        
+
     }
 
     public function getId(): ?int
@@ -82,6 +82,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     /**
      * @see UserInterface
+     * @return string[]
      */
     public function getRoles(): array
     {
@@ -92,6 +93,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return array_unique($roles);
     }
 
+    /**
+     * @param string[] $roles
+     */
     public function setRoles(array $roles): static
     {
         $this->roles = $roles;
@@ -102,7 +106,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     /**
      * @see PasswordAuthenticatedUserInterface
      */
-    public function getPassword(): string
+    public function getPassword(): ?string
     {
         return $this->password;
     }
@@ -113,15 +117,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
         return $this;
     }
-    
-     /**
+
+    /**
      * For tests / mailer: return the transient plain token if present.
      */
     public function getResetToken(): ?string
     {
         return $this->resetToken;
     }
-    public function setResetToken(?string $token): static   
+    public function setResetToken(?string $token): static
     {
         if ($token === null) {
             $this->resetToken = null;
@@ -188,10 +192,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return hash_equals($this->resetTokenHash, $givenHash);
     }
 
-    
-
-    
-
     public function setResetTokenExpiresAt(?\DateTimeImmutable $resetTokenExpiresAt): static
     {
         $this->resetTokenExpiresAt = $resetTokenExpiresAt;
@@ -205,8 +205,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         }
         return $this->resetTokenExpiresAt > new \DateTimeImmutable();
     }
-
-
 
     /**
      * @see UserInterface
@@ -248,5 +246,4 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
-    
 }

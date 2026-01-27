@@ -47,19 +47,26 @@ class SecurityHeadersListener implements EventSubscriberInterface
             );
         }
 
-        // CSP
-        $response->headers->set(
-            'Content-Security-Policy',
-            "default-src 'none'; " .
-            "script-src 'self'; " .
-            "style-src 'self'; " .
-            "img-src 'self' data: https:; " .
-            "font-src 'self'; " .
-            "connect-src 'self'; " .
-            "frame-ancestors 'none'; " .
-            "base-uri 'self'; " .
-            "form-action 'self'"
-        );
+        $csp = "default-src 'none'; " .
+           "img-src 'self' data: https:; " .
+           "font-src 'self'; " .
+           "connect-src 'self'; " .
+           "frame-ancestors 'none'; " .
+           "base-uri 'self'; " .
+           "form-action 'self'; ";
+
+        // PRÜFUNG: Ist es die API-Dokumentation?
+        if (str_starts_with($request->getPathInfo(), '/api/doc')) {
+            // Erlaube unsafe-inline NUR für die Doku
+            $csp .= "script-src 'self' 'unsafe-inline'; ";
+            $csp .= "style-src 'self' 'unsafe-inline'; ";
+        } else {
+            // Strenge Regeln für den Rest der App
+            $csp .= "script-src 'self'; ";
+            $csp .= "style-src 'self'; ";
+        }
+
+        $response->headers->set('Content-Security-Policy', $csp);
 
         // Weitere Sicherheitsheader
         $response->headers->set('X-Content-Type-Options', 'nosniff');

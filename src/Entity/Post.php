@@ -28,6 +28,9 @@ class Post
     #[Groups("post")]
     private ?string $titleImage = null;
 
+    /**
+     * @var string[]|null
+     */
     #[ORM\Column(nullable: true)]
     #[Groups("post")]
     private ?array $images = null;
@@ -39,7 +42,7 @@ class Post
 
     #[ORM\Column(type: "datetime")]
     #[Groups("post")]
-    private ?\datetime $createdAt = null;
+    private ?\DateTimeInterface $createdAt = null;
 
     #[ORM\ManyToOne(inversedBy: 'posts')]
     #[ORM\JoinColumn(nullable: false)]
@@ -48,7 +51,7 @@ class Post
     #[ORM\Column(length: 255, unique: true)]
     #[Groups("post")]
     private ?string $slug = null;
-    
+
     public function getSlug(): ?string
     {
         return $this->slug;
@@ -101,11 +104,17 @@ class Post
         return $this;
     }
 
+    /**
+     * @return string[]|null
+     */
     public function getImages(): ?array
     {
         return $this->images;
     }
 
+    /**
+     * @param string[]|null $images
+     */
     public function setImages(?array $images): static
     {
         $this->images = $images;
@@ -125,12 +134,12 @@ class Post
         return $this;
     }
 
-    public function getCreatedAt(): ?\DateTime
+    public function getCreatedAt(): ?\DateTimeInterface
     {
         return $this->createdAt;
     }
 
-    public function setCreatedAt(\DateTime $createdAt): static
+    public function setCreatedAt(\DateTimeInterface $createdAt): static
     {
         $this->createdAt = $createdAt;
 

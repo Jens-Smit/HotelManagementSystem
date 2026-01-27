@@ -16,7 +16,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route; // Nutzt den Attribute-Namespace
 use Symfony\Component\Serializer\SerializerInterface;
-use Symfony\Bundle\SecurityBundle\Security; 
+use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 // use Nelmio\ApiDocBundle\Annotation\Model; // Nicht mehr benötigt, da durch OA\JsonContent(ref: Post::class) ersetzt
 
@@ -52,13 +52,18 @@ class PostController extends AbstractController
     public function index(Request $request, EntityManagerInterface $em, SerializerInterface $serializer): JsonResponse
     {
         $categoryId = $request->query->get('categoryId');
-        
+
         if ($categoryId) {
-            $posts = $em->getRepository(Post::class)->findBy(['category' => $categoryId]);
+            $category = $em->getRepository(Category::class)->find((int) $categoryId);
+            if ($category) {
+                $posts = $em->getRepository(Post::class)->findBy(['category' => $category]);
+            } else {
+                $posts = [];
+            }
         } else {
             $posts = $em->getRepository(Post::class)->findAll();
         }
-        
+
         $json = $serializer->serialize($posts, 'json', ['groups' => 'post']);
         return new JsonResponse($json, Response::HTTP_OK, [], true);
     }
@@ -129,7 +134,7 @@ class PostController extends AbstractController
     public function create(Request $request, PostService $postService, Security $security): JsonResponse
     {
         $uploadedImages = $request->files->get('images', []);
-        
+
         if (!is_array($uploadedImages) && $uploadedImages instanceof UploadedFile) {
             $uploadedImages = [$uploadedImages];
         } elseif ($uploadedImages === null) {
@@ -137,13 +142,13 @@ class PostController extends AbstractController
         }
 
         $categoryId = $request->request->get('categoryId');
-        
+
         $dto = new PostCreateDTO(
-            $request->request->get('title', ''),
+            (string) $request->request->get('title', ''),
             $request->request->get('content', null),
             $request->files->get('titleImage'),
             $uploadedImages,
-            $request->request->get('imageMap', '{}'),
+            (string) $request->request->get('imageMap', '{}'),
             $categoryId ? (int)$categoryId : null
         );
 
@@ -152,7 +157,11 @@ class PostController extends AbstractController
         }
 
         try {
-            $post = $postService->createPost($dto, $security->getUser());
+            $author = $security->getUser();
+            if (!$author) {
+                return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+            }
+            $post = $postService->createPost($dto, $author);
             return new JsonResponse(['message' => 'Post erfolgreich erstellt', 'id' => $post->getId()], 201);
         } catch (\Throwable $e) {
             error_log('Fehler beim Erstellen des Posts: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
@@ -195,7 +204,7 @@ class PostController extends AbstractController
 
         try {
             $file->move($uploadDir, $filename);
-            $url = $request->getSchemeAndHttpHost() . '/api/public/uploads/' . $filename;
+            $url = '/api/public/uploads/' . $filename;
             return new JsonResponse(['url' => $url], 201);
         } catch (\Exception $e) {
             error_log('Fehler beim Upload der Mediendatei: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
@@ -244,10 +253,10 @@ class PostController extends AbstractController
         }
 
         $currentUser = $security->getUser();
-        if ($post->getAuthor() !== $currentUser) {
+        if (!$currentUser || $post->getAuthor() !== $currentUser) {
             return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
         }
-        
+
         $data = json_decode($request->getContent(), true);
 
         $title = $data['title'] ?? null;
@@ -255,16 +264,16 @@ class PostController extends AbstractController
         $categoryId = isset($data['categoryId']) ? (int)$data['categoryId'] : null;
 
         if (empty($title)) {
-            return new JsonResponse(['error' => 'kein Titel hinterlegt'], 402);
+            return new JsonResponse(['error' => 'kein Titel hinterlegt'], 400);
         }
         if (empty($content)) {
-            return new JsonResponse(['error' => 'kein Content hinterlegt'], 402);
+            return new JsonResponse(['error' => 'kein Content hinterlegt'], 400);
         }
 
         $dto = new PostUpdateDTO(
             id: $id,
-            title: $title,
-            content: $content,
+            title: (string) $title,
+            content: (string) $content,
             categoryId: $categoryId
         );
 
@@ -308,7 +317,8 @@ class PostController extends AbstractController
             return new JsonResponse(['error' => 'Post nicht gefunden'], 404);
         }
 
-        if ($post->getAuthor() !== $security->getUser()) {
+        $currentUser = $security->getUser();
+        if (!$currentUser || $post->getAuthor() !== $currentUser) {
             return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
         }
 

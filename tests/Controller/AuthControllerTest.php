@@ -560,14 +560,15 @@ class AuthControllerTest extends WebTestCase
         $email = 'test_change_pw_' . uniqid() . '@example.com';
         $oldPassword = 'CurrentPassword123';
         $newPassword = 'NewSecurePassword456';
-        
+
         // 1. Benutzer erstellen und einloggen (Cookie setzen)
         $this->createUserInDb($email, $oldPassword);
         $this->loginUser($email, $oldPassword); // Setzt das 'BEARER' Cookie im Client
 
         // 2. Passwortänderungs-Request
-        $this->client->request('POST', '/api/password/change', [], [], 
-            ['CONTENT_TYPE' => 'application/json'], 
+        // ✅ FIX: Verwende den Client, der bereits das Cookie hat
+        $this->client->request('POST', '/api/password/change', [], [],
+            ['CONTENT_TYPE' => 'application/json'],
             json_encode([
                 'currentPassword' => $oldPassword,
                 'newPassword' => $newPassword
@@ -576,15 +577,15 @@ class AuthControllerTest extends WebTestCase
 
         $response = $this->client->getResponse();
         $this->assertSame(Response::HTTP_OK, $response->getStatusCode());
-        
+
         // 3. Prüfen, ob das Passwort wirklich geändert wurde
         /** @var EntityManagerInterface $em */
         $em = $this->client->getContainer()->get('doctrine')->getManager();
         $user = $em->getRepository(User::class)->findOneBy(['email' => $email]);
-        
+
         /** @var UserPasswordHasherInterface $passwordHasher */
         $passwordHasher = $this->client->getContainer()->get(UserPasswordHasherInterface::class);
-        
+
         // Altes Passwort sollte fehlschlagen
         $this->assertFalse($passwordHasher->isPasswordValid($user, $oldPassword), "Altes Passwort sollte ungültig sein.");
         // Neues Passwort sollte funktionieren
@@ -598,14 +599,15 @@ class AuthControllerTest extends WebTestCase
     {
         $email = 'test_change_fail_' . uniqid() . '@example.com';
         $oldPassword = 'CurrentPassword123';
-        
+
         // 1. Benutzer erstellen und einloggen (Cookie setzen)
         $this->createUserInDb($email, $oldPassword);
         $this->loginUser($email, $oldPassword);
 
         // 2. Passwortänderungs-Request mit falschem aktuellen Passwort
-        $this->client->request('POST', '/api/password/change', [], [], 
-            ['CONTENT_TYPE' => 'application/json'], 
+        // ✅ FIX: Verwende den Client, der bereits das Cookie hat
+        $this->client->request('POST', '/api/password/change', [], [],
+            ['CONTENT_TYPE' => 'application/json'],
             json_encode([
                 'currentPassword' => 'WrongPassword',
                 'newPassword' => 'NewSecurePassword456'
