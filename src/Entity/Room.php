@@ -171,7 +171,15 @@ class Room
 
         return $this;
     }
-
+    #[ORM\PrePersist]
+    #[ORM\PreUpdate]
+    public function ensureSlug(): void
+    {
+        if (empty($this->slug)) {
+            // Generiere einen Slug aus dem Namen, falls er null ist
+            $this->slug = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $this->name)));
+        }
+    }
     public function getCapacity(): int
     {
         return $this->capacity;
