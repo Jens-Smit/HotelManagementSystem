@@ -8,6 +8,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: PostRepository::class)]
+#[ORM\HasLifecycleCallbacks] // <--- Wichtig!
 class Post
 {
     #[ORM\Id]
@@ -61,6 +62,15 @@ class Post
     {
         $this->slug = $slug;
         return $this;
+    }
+    
+    #[ORM\PrePersist]
+    public function generateSlug(): void
+    {
+        if (!$this->slug) {
+            // Einfache Generierung aus dem Titel
+            $this->slug = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $this->title)));
+        }
     }
 
     public function getId(): ?int

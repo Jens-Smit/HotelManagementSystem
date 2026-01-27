@@ -12,6 +12,7 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Entity(repositoryClass: RoomRepository::class)]
 #[ORM\Table(name: 'rooms')]
 #[ORM\Index(columns: ['slug'], name: 'idx_room_slug')]
+#[ORM\HasLifecycleCallbacks]
 #[OA\Schema(
     description: "Repräsentiert ein Hotelzimmer mit allen relevanten Informationen",
     required: ['name', 'slug', 'capacity', 'basePrice']

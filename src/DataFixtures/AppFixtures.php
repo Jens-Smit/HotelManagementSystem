@@ -35,6 +35,7 @@ class AppFixtures extends Fixture
         $post->setContent('Inhalt für Testzwecke.');
         $post->setAuthor($user);
         $post->setCategory($category);
+        $post->setSlug('erster-testpost');
         $post->setCreatedAt(new \DateTime());
         $manager->persist($post);
         $roomsData = [
