@@ -1,0 +1,11 @@
+doctrine:
+    dbal:
+        # Hier gehört 'types' hin, direkt unter dbal
+        types:
+            uuid: Symfony\Bridge\Doctrine\Types\UuidType
+        connections:
+            default:
+                # Nutze mapping_types für SQLite Kompatibilität
+                mapping_types:
+                    binary: uuid
+                    blob: uuid
