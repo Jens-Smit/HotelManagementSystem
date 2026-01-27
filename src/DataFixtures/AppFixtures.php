@@ -36,7 +36,24 @@ class AppFixtures extends Fixture
         $post->setCategory($category);
         $post->setCreatedAt(new \DateTime());
         $manager->persist($post);
+        $roomsData = [
+            ['name' => 'Standard Doppelzimmer', 'slug' => 'standard-doppelzimmer', 'price' => 85.00, 'capacity' => 2],
+            ['name' => 'Luxus Suite', 'slug' => 'luxus-suite', 'price' => 250.00, 'capacity' => 4],
+            ['name' => 'Einzelzimmer Business', 'slug' => 'einzelzimmer-business', 'price' => 65.00, 'capacity' => 1],
+        ];
 
+        foreach ($roomsData as $data) {
+            $room = new Room();
+            $room->setName($data['name']);
+            $room->setSlug($data['slug']); // WICHTIG: Hier wird der "slug" gesetzt!
+            $room->setBasePrice($data['price']);
+            $room->setCapacity($data['capacity']);
+            $room->setIsActive(true);
+            $room->setCreatedAt(new \DateTime());
+            $room->setUpdatedAt(new \DateTime());
+            
+            $manager->persist($room);
+        }
         $manager->flush();
     }
 }
