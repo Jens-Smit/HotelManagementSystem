@@ -40,14 +40,23 @@ jobs:
           cp .env.example .env
           echo "APP_ENV=test" >> .env
 
-      
       - name: Setup test env
         run: |
           cp .env.test .env.test.local
           echo "DATABASE_URL=mysql://root:root@127.0.0.1:3306/hms_test?serverVersion=8.0" >> .env.test.local
+        
+      - name: Get Composer Cache Directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
 
+      - name: Cache Composer dependencies
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
       - name: Install dependencies
-        run: composer install --prefer-dist --no-progress
+        run: composer install --prefer-dist --no-progress --no-interaction
 
       - name: Create database
         run: php bin/console doctrine:database:create --env=test --if-not-exists
