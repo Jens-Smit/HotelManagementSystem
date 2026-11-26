@@ -2,19 +2,19 @@
 
 namespace App\Entity;
 
-use App\Enum\BookingSource;
 use App\Enum\BookingStatus;
 use App\Repository\BookingRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Nelmio\ApiDocBundle\Annotation\Model;
 use OpenApi\Attributes as OA;
+use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity(repositoryClass: BookingRepository::class)]
 #[ORM\Table(name: 'bookings')]
-#[ORM\UniqueConstraint(name: 'unique_booking', columns: ['room_id', 'start_date', 'end_date', 'status'], options: ['where' => '(status != \'cancelled\')'])]
-#[ORM\Index(columns: ['booking_hash'], name: 'idx_booking_hash')]
+#[ORM\UniqueConstraint(name: 'unique_booking', columns: ['room_id', 'start_date', 'end_date', 'status'])]
+#[ORM\Index(name: 'idx_booking_hash', columns: ['booking_hash'])]
 #[ORM\Index(columns: ['room_id', 'start_date', 'end_date'], name: 'idx_booking_dates')]
 #[OA\Schema(
     description: "Repräsentiert eine Hotelbuchung mit allen relevanten Informationen",
@@ -32,6 +32,7 @@ class Booking
         format: "uuid",
         example: "e5f6g7h8-i9j0-k1l2-m3n4-o5p6q7r8s9t0"
     )]
+    #[Groups(['api'])]
     private ?Uuid $id = null;
 
     #[ORM\ManyToOne(targetEntity: Room::class)]
@@ -41,6 +42,7 @@ class Booking
         description: "Referenz zum gebuchten Hotelzimmer",
         ref: new Model(type: Room::class, groups: ["api"])
     )]
+    #[Groups(['api'])]
     private Room $room;
 
     #[ORM\Column(type: 'date')]
@@ -51,6 +53,7 @@ class Booking
         format: "date",
         example: "2026-03-15"
     )]
+    #[Groups(['api'])]
     private \DateTimeInterface $startDate;
 
     #[ORM\Column(type: 'date')]
@@ -62,6 +65,7 @@ class Booking
         format: "date",
         example: "2026-03-20"
     )]
+    #[Groups(['api'])]
     private \DateTimeInterface $endDate;
 
     #[ORM\Column(type: 'string', length: 200)]
@@ -71,6 +75,7 @@ class Booking
         description: "Name des Gastes",
         example: "Max Mustermann"
     )]
+    #[Groups(['api'])]
     private string $guestName;
 
     #[ORM\Column(type: 'string', length: 180)]
@@ -81,6 +86,7 @@ class Booking
         description: "E-Mail-Adresse des Gastes",
         example: "max.mustermann@example.com"
     )]
+    #[Groups(['api'])]
     private string $guestEmail;
 
     #[ORM\Column(type: 'string', length: 50, nullable: true)]
@@ -90,6 +96,7 @@ class Booking
         example: "+49 123 456789",
         nullable: true
     )]
+    #[Groups(['api'])]
     private ?string $guestPhone = null;
 
     #[ORM\Column(type: 'decimal', precision: 10, scale: 2)]
@@ -101,24 +108,28 @@ class Booking
         format: "float",
         example: 600.00
     )]
+    #[Groups(['api'])]
     private string $totalPrice;
 
-    #[ORM\Column(type: 'string', length: 20, enumType: BookingSource::class)]
+    #[ORM\Column(type: 'string', length: 20)]
     #[Assert\NotBlank]
+    #[Assert\Choice(choices: ['website', 'booking_com', 'homeaway', 'manual'])]
     #[OA\Property(
         description: "Quelle der Buchung",
         enum: ['website', 'booking_com', 'homeaway', 'manual'],
         example: "website"
     )]
+    #[Groups(['api'])]
     private string $source;
 
-    #[ORM\Column(type: 'string', length: 20, enumType: BookingStatus::class)]
+    #[ORM\Column(type: 'string', length: 20)]
     #[Assert\NotBlank]
     #[OA\Property(
         description: "Status der Buchung",
         enum: ['pending', 'confirmed', 'cancelled', 'blocked'],
         example: "confirmed"
     )]
+    #[Groups(['api'])]
     private string $status;
 
     #[ORM\Column(type: 'string', length: 100, nullable: true)]
@@ -128,6 +139,7 @@ class Booking
         example: "BKG-12345678",
         nullable: true
     )]
+    #[Groups(['api'])]
     private ?string $externalId = null;
 
     #[ORM\Column(type: 'text', nullable: true)]
@@ -136,6 +148,7 @@ class Booking
         example: "Frühstück inklusive, Allergikerzimmer",
         nullable: true
     )]
+    #[Groups(['api'])]
     private ?string $notes = null;
 
     #[ORM\Column(type: 'string', length: 64, unique: true)]
@@ -145,6 +158,7 @@ class Booking
         description: "Eindeutiger Hash zur Identifikation der Buchung (für öffentliche Links)",
         example: "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0"
     )]
+    #[Groups(['api'])]
     private string $bookingHash;
 
     #[ORM\Version]
@@ -153,6 +167,7 @@ class Booking
         description: "Optimistic Locking Counter - wird bei jedem Update erhöht",
         example: 1
     )]
+    #[Groups(['api'])]
     private int $version = 0;
 
     #[ORM\Column(type: 'datetime')]
@@ -161,6 +176,7 @@ class Booking
         type: "string",
         format: "date-time"
     )]
+    #[Groups(['api'])]
     private \DateTimeInterface $createdAt;
 
     #[ORM\Column(type: 'datetime')]
@@ -169,6 +185,7 @@ class Booking
         type: "string",
         format: "date-time"
     )]
+    #[Groups(['api'])]
     private \DateTimeInterface $updatedAt;
 
     public function __construct()

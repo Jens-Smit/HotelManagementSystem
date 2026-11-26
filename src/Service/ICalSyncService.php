@@ -7,11 +7,12 @@ use App\Entity\Booking;
 use App\Entity\Room;
 use App\Repository\BookingRepository;
 use Doctrine\ORM\EntityManagerInterface;
-use Eluceo\iCal\Domain\Entity\Event;
 use Psr\Log\LoggerInterface;
+use Sabre\VObject\Reader;
+use Sabre\VObject\Component\VCalendar;
+use Sabre\VObject\Component\VEvent;
 use Symfony\Component\HttpClient\HttpClient;
-use Eluceo\iCal\Domain\Entity\Calendar;
-use Eluceo\iCal\Presentation\Factory\CalendarFactory;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class ICalSyncService
 {
@@ -19,24 +20,38 @@ class ICalSyncService
         private BookingRepository $bookingRepository,
         private EntityManagerInterface $entityManager,
         private LoggerInterface $logger,
+        private ?HttpClientInterface $httpClient = null,
     ) {
     }
 
+    /**
+     * @return VEvent[]
+     */
     public function fetchAndParseICal(string $icalUrl): array
     {
-        $client = HttpClient::create();
+        $client = $this->httpClient ?? HttpClient::create();
         $response = $client->request('GET', $icalUrl);
         $icalContent = $response->getContent();
 
-        $calendar = (new CalendarFactory())->createCalendar($icalContent);
-        return $calendar->getEvents();
+        /** @var VCalendar $calendar */
+        $calendar = Reader::read($icalContent);
+
+        $events = $calendar->VEVENT ?? [];
+
+        if (!is_array($events)) {
+            $events = [$events];
+        }
+
+        return array_values($events);
     }
 
+    /**
+     * @return Booking[]
+     */
     public function syncRoomCalendar(Room $room): array
     {
         $newBookings = [];
 
-        // Sync Booking.com
         if ($room->getIcalUrlBooking()) {
             try {
                 $events = $this->fetchAndParseICal($room->getIcalUrlBooking());
@@ -53,7 +68,6 @@ class ICalSyncService
             }
         }
 
-        // Sync HomeAway
         if ($room->getIcalUrlHomeaway()) {
             try {
                 $events = $this->fetchAndParseICal($room->getIcalUrlHomeaway());
@@ -73,35 +87,46 @@ class ICalSyncService
         return $newBookings;
     }
 
+    /**
+     * @param VEvent[] $events
+     * @return Booking[]
+     */
     private function processEvents(Room $room, array $events, string $source): array
     {
         $newBookings = [];
 
         foreach ($events as $event) {
-            $uid = (string)$event->getUniqueIdentifier();
+            $uid = (string) ($event->UID ?? '');
 
-            // Check if booking already exists
+            if ($uid === '') {
+                continue;
+            }
+
             $existing = $this->bookingRepository->findOneBy([
                 'externalId' => $uid,
                 'source' => $source,
             ]);
 
             if ($existing) {
-                continue; // Already imported
+                continue;
             }
 
-            // Check for cancellation
-            $status = $event->getStatus();
-            if ($status !== null && strtoupper($status->getValue()) === 'CANCELLED') {
-                continue; // Skip cancelled events
+            if (strtoupper((string) ($event->STATUS ?? '')) === 'CANCELLED') {
+                continue;
             }
 
             try {
-                $startDate = $event->getStartDate()->getDateTime();
-                $endDate = $event->getEndDate()->getDateTime();
-                $summary = (string)$event->getSummary();
+                $startImmutable = $event->DTSTART?->getDateTime();
+                $endImmutable = $event->DTEND?->getDateTime();
 
-                // Extract guest name from summary if possible
+                if (!$startImmutable || !$endImmutable) {
+                    continue;
+                }
+
+                $startDate = \DateTime::createFromInterface($startImmutable);
+                $endDate = \DateTime::createFromInterface($endImmutable);
+
+                $summary = (string) ($event->SUMMARY ?? '');
                 $guestName = $this->extractGuestName($summary);
 
                 $booking = new Booking();
@@ -110,7 +135,7 @@ class ICalSyncService
                 $booking->setEndDate($endDate);
                 $booking->setGuestName($guestName ?? 'External Guest');
                 $booking->setGuestEmail('external@' . $source . '.com');
-                $booking->setTotalPrice("0.0"); // Unknown for external bookings
+                $booking->setTotalPrice("0.0");
                 $booking->setSource($source);
                 $booking->setStatus('confirmed');
                 $booking->setExternalId($uid);
@@ -124,7 +149,6 @@ class ICalSyncService
                     'source' => $source,
                     'external_id' => $uid,
                 ]);
-
             } catch (\Exception $e) {
                 $this->logger->error('Failed to process event', [
                     'uid' => $uid,
@@ -142,52 +166,50 @@ class ICalSyncService
 
     private function extractGuestName(string $summary): ?string
     {
-        // Common patterns: "Reserved for: John Doe" or "Reservation: Jane Smith"
         if (preg_match('/(?:reserved for|reservation):\s*(.+)/i', $summary, $matches)) {
             return trim($matches[1]);
         }
+
         return null;
     }
+
     /**
-     * Prüft, ob ein Raum in einem bestimmten Zeitraum verfügbar ist,
-     * basierend auf den Daten in den externen iCal-Feeds.
+     * Prüft anhand eines externen iCal-Feeds, ob der Zeitraum frei ist.
      */
-    public function checkAvailability(Room $room, \DateTimeInterface $startDate, \DateTimeInterface $endDate): bool
+    public function checkAvailability(string $icalUrl, \DateTimeInterface $startDate, \DateTimeInterface $endDate): bool
     {
-        // 1. Zuerst die URLs prüfen
-        $urls = array_filter([
-            $room->getIcalUrlBooking(),
-            $room->getIcalUrlHomeaway()
-        ]);
+        try {
+            $events = $this->fetchAndParseICal($icalUrl);
 
-        foreach ($urls as $url) {
-            try {
-                $events = $this->fetchAndParseICal($url);
-                
-                foreach ($events as $event) {
-                    $eventStart = $event->getStartDate()->getDateTime();
-                    $eventEnd = $event->getEndDate()->getDateTime();
-
-                    // Standard-Logik für Datumsüberschneidungen:
-                    // (StartA < EndeB) UND (EndeA > StartB)
-                    if ($startDate < $eventEnd && $endDate > $eventStart) {
-                        $this->logger->info('ICal-Konflikt gefunden', [
-                            'room' => $room->getId(),
-                            'conflict_start' => $eventStart->format('Y-m-d'),
-                            'conflict_end' => $eventEnd->format('Y-m-d')
-                        ]);
-                        return false; // Zeitraum ist belegt
-                    }
+            foreach ($events as $event) {
+                if (strtoupper((string) ($event->STATUS ?? '')) === 'CANCELLED') {
+                    continue;
                 }
-            } catch (\Exception $e) {
-                $this->logger->error('Verfügbarkeitsprüfung via iCal fehlgeschlagen', [
-                    'error' => $e->getMessage()
-                ]);
-                // Im Zweifel: true oder false? Meistens true, um Buchung nicht zu blockieren, 
-                // oder false für maximale Sicherheit.
+
+                $eventStart = $event->DTSTART?->getDateTime();
+                $eventEnd = $event->DTEND?->getDateTime();
+
+                if (!$eventStart || !$eventEnd) {
+                    continue;
+                }
+
+                if ($startDate < $eventEnd && $endDate > $eventStart) {
+                    $this->logger->info('ICal-Konflikt gefunden', [
+                        'ical_url' => $icalUrl,
+                        'conflict_start' => $eventStart->format('Y-m-d'),
+                        'conflict_end' => $eventEnd->format('Y-m-d'),
+                    ]);
+
+                    return false;
+                }
             }
+        } catch (\Exception $e) {
+            $this->logger->error('Verfügbarkeitsprüfung via iCal fehlgeschlagen', [
+                'ical_url' => $icalUrl,
+                'error' => $e->getMessage(),
+            ]);
         }
 
-        return true; // Keine Konflikte gefunden
+        return true;
     }
 }

@@ -2,7 +2,7 @@ nelmio_api_doc:
     documentation:
         info:
             title: 'HotelManagementSystem API Documentation'
-            description: 'Diese API verwendet JWT-Authentifizierung und ermöglicht das Erstellen, Bearbeiten und Löschen von Blogposts.'
+            description: 'PMS-API für kleine Beherbergungsbetriebe: Zimmer, Buchungen (mit Doppelbuchungs-Schutz), Verfügbarkeitsprüfung, iCal-Synchronisation mit Booking.com/HomeAway sowie CMS (Posts/Kategorien). JWT-Authentifizierung über HttpOnly-Cookie (BEARER).'
             version: '1.0.0'
             contact:
                 name: 'Jens Smit'

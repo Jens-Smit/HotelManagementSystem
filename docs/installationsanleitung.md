@@ -19,7 +19,7 @@
 ### Server-Anforderungen
 - **Betriebssystem**: Linux (empfohlen), Windows oder macOS
 - **Webserver**: Apache 2.4+ oder Nginx 1.18+
-- **PHP**: Version 8.1 oder höher
+- **PHP**: Version 8.2 oder höher
 - **Datenbank**: MySQL 8.0+ oder MariaDB 10.4+
 - **RAM**: Mindestens 2 GB (4 GB empfohlen)
 - **Speicherplatz**: Mindestens 100 MB für die Anwendung, zusätzlich Platz für Datenbank und Logs
@@ -209,11 +209,13 @@ Stellen Sie sicher, dass die folgenden PHP-Erweiterungen installiert und aktivie
 ## Erste Schritte
 
 ### Administrator-Benutzer erstellen
-1. Führen Sie den folgenden Befehl aus, um einen Administrator-Benutzer zu erstellen:
-   ```bash
-   php bin/console app:create-user admin@example.com admin --role=ROLE_ADMIN
-   ```
-   - Ersetzen Sie `admin@example.com` und `admin` mit Ihrer E-Mail-Adresse und Ihrem gewünschten Passwort.
+1. Registrieren Sie den ersten Benutzer über die API (oder laden Sie die
+   Demo-Daten via `php bin/console doctrine:fixtures:load`):
+
+   POST /api/register mit {"email": "admin@example.com", "password": "IhrSicheresPasswort"}
+
+   - Die Rollenvergabe (ROLE_ADMIN) erfolgt derzeit direkt in der
+     Datenbanktabelle "user" (Spalte "roles").
 
 ### Anwendung testen
 1. Öffnen Sie die Anwendung in Ihrem Browser:

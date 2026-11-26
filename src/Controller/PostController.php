@@ -7,6 +7,7 @@ use OpenApi\Attributes as OA; // Wichtig: Nutzt den Attributes-Namespace
 use App\DTO\PostCreateDTO;
 use App\DTO\PostUpdateDTO;
 use App\Entity\Post;
+use App\Entity\User as AppUser;
 use App\Entity\Category;
 use App\Service\PostService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -158,7 +159,7 @@ class PostController extends AbstractController
 
         try {
             $author = $security->getUser();
-            if (!$author) {
+            if (!$author instanceof AppUser) {
                 return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
             }
             $post = $postService->createPost($dto, $author);

@@ -85,16 +85,31 @@ class ContactControllerTest extends WebTestCase
 
     public function testSubmitContactFailsOnMailerException(): void
     {
-        // Hinweis: In vielen Symfony-Setups ist der interne Mailer-Service privat
-        // und lässt sich nicht per test.service_container->set(...) ersetzen.
-        // Um Fehler/Exceptions in Tests zu vermeiden (ohne den Controller zu ändern),
-        // überspringen wir diesen Test sauber mit einer erklärenden Nachricht.
-        //
-        // Wenn du ihn aktivieren willst, siehe die Anleitung weiter unten.
+        $client = static::createClient();
 
-        $this->markTestSkipped(
-            'Mailer-Exception-Test deaktiviert: In deinem Setup ist der interne Mailer-Service nicht ersetzbar. ' .
-            'Siehe README in ChatGPT-Antwort zum Aktivieren (services_test.yaml oder Wrapper-Service).'
+        $mailerMock = $this->createMock(MailerInterface::class);
+        $mailerMock->method('send')
+            ->willThrowException(new \RuntimeException('SMTP connection failed'));
+
+        $client->getContainer()->set(MailerInterface::class, $mailerMock);
+
+        $client->request(
+            'POST',
+            '/api/contact',
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json'],
+            json_encode([
+                'name' => 'Max Mustermann',
+                'email' => 'max@example.com',
+                'subject' => 'Test',
+                'message' => 'Hallo, dies ist ein Test.'
+            ])
         );
+
+        $this->assertSame(Response::HTTP_INTERNAL_SERVER_ERROR, $client->getResponse()->getStatusCode());
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        $this->assertSame('Beim Senden der Nachricht ist ein Fehler aufgetreten.', $data['message']);
     }
 }

@@ -38,8 +38,8 @@ class BookingService
             }
 
             // 2. Parse dates
-            $startDate = new \DateTimeImmutable($request->startDate);
-            $endDate = new \DateTimeImmutable($request->endDate);
+            $startDate = new \DateTime($request->startDate);
+            $endDate = new \DateTime($request->endDate);
 
             // 3. Check internal database conflicts
             $conflicts = $this->bookingRepository->findConflicts(
@@ -52,7 +52,7 @@ class BookingService
                 $this->logger->info('Internal booking conflict detected', [
                     'room_id' => $request->roomId,
                     'requested_dates' => [$request->startDate, $request->endDate],
-                    'conflicts' => array_map(fn($b) => $b->getId()->toRfc4122(), $conflicts),
+                    'conflicts' => array_map(fn($b) => $b->getId()?->toRfc4122(), $conflicts),
                 ]);
 
                 return new BookingResponse(
@@ -76,8 +76,8 @@ class BookingService
             }
 
             // 5. Calculate total price
-            $nights = $startDate->diff($endDate)->days;
-            $totalPrice = (string) ($room->getBasePrice() * $nights);
+            $nights = (int) $startDate->diff($endDate)->days;
+            $totalPrice = (string) ((float) $room->getBasePrice() * $nights);
 
             // 6. Create booking with transaction + optimistic locking
             return $this->createBookingTransaction($room, $request, $startDate, $endDate, $totalPrice);
@@ -120,7 +120,7 @@ class BookingService
                 $checkResults['booking_com'] = 'available';
             } catch (\Exception $e) {
                 $this->logger->error('Booking.com iCal check failed', [
-                    'room_id' => $room->getId()->toRfc4122(),
+                    'room_id' => $room->getId()?->toRfc4122(),
                     'error' => $e->getMessage(),
                 ]);
 
@@ -149,7 +149,7 @@ class BookingService
                 $checkResults['homeaway'] = 'available';
             } catch (\Exception $e) {
                 $this->logger->error('HomeAway iCal check failed', [
-                    'room_id' => $room->getId()->toRfc4122(),
+                    'room_id' => $room->getId()?->toRfc4122(),
                     'error' => $e->getMessage(),
                 ]);
 
@@ -189,8 +189,8 @@ class BookingService
             $this->entityManager->commit();
 
             $this->logger->info('Booking created successfully', [
-                'booking_id' => $booking->getId()->toRfc4122(),
-                'room_id' => $room->getId()->toRfc4122(),
+                'booking_id' => $booking->getId()?->toRfc4122(),
+                'room_id' => $room->getId()?->toRfc4122(),
                 'guest_email' => $request->guestEmail,
             ]);
 
@@ -198,7 +198,7 @@ class BookingService
 
             return new BookingResponse(
                 success: true,
-                bookingId: $booking->getId(),
+                bookingId: $booking->getId()?->toRfc4122(),
                 bookingHash: $booking->getBookingHash(),
                 totalPrice: (float) $totalPrice,
                 message: 'Booking confirmed. Confirmation email sent.'
@@ -208,7 +208,7 @@ class BookingService
             $this->entityManager->rollback();
 
             $this->logger->warning('Optimistic lock failure during booking', [
-                'room_id' => $room->getId()->toRfc4122(),
+                'room_id' => $room->getId()?->toRfc4122(),
             ]);
 
             return new BookingResponse(
@@ -221,7 +221,7 @@ class BookingService
 
             $this->logger->error('Transaction failed', [
                 'error' => $e->getMessage(),
-                'room_id' => $room->getId()->toRfc4122(),
+                'room_id' => $room->getId()?->toRfc4122(),
             ]);
 
             return new BookingResponse(
@@ -243,7 +243,7 @@ class BookingService
         );
 
         return array_map(fn(Room $room) => [
-            'room_id' => $room->getId()->toRfc4122(),
+            'room_id' => $room->getId()?->toRfc4122(),
             'room_name' => $room->getName(),
             'capacity' => $room->getCapacity(),
             'base_price' => $room->getBasePrice(),

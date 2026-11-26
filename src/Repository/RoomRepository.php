@@ -71,4 +71,29 @@ class RoomRepository extends ServiceEntityRepository
 
         return $qb->getQuery()->getResult();
     }
+
+    /**
+     * @return Room[]
+     */
+    public function findByFilters(bool $isActive, int $page, int $limit): array
+    {
+        $qb = $this->createQueryBuilder('r')
+            ->where('r.isActive = :active')
+            ->setParameter('active', $isActive)
+            ->orderBy('r.name', 'ASC')
+            ->setFirstResult(max(0, ($page - 1) * $limit))
+            ->setMaxResults($limit);
+
+        return $qb->getQuery()->getResult();
+    }
+
+    public function countByFilters(bool $isActive): int
+    {
+        return (int) $this->createQueryBuilder('r')
+            ->select('COUNT(r.id)')
+            ->where('r.isActive = :active')
+            ->setParameter('active', $isActive)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
 }

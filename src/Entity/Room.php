@@ -7,6 +7,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Nelmio\ApiDocBundle\Annotation\Model;
 use OpenApi\Attributes as OA;
 use Symfony\Component\Uid\Uuid;
+use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity(repositoryClass: RoomRepository::class)]
@@ -29,6 +30,7 @@ class Room
         format: "uuid",
         example: "a1b2c3d4-e5f6-7890-g1h2-i3j4k5l6m7n8"
     )]
+    #[Groups(['api'])]
     private ?Uuid $id = null;
 
     #[ORM\Column(type: 'string', length: 100)]
@@ -38,6 +40,7 @@ class Room
         description: "Name des Hotelzimmers (z.B. \"Standard Zimmer\")",
         example: "Standard Zimmer"
     )]
+    #[Groups(['api'])]
     private string $name;
 
     #[ORM\Column(type: 'string', length: 100, unique: true)]
@@ -47,6 +50,7 @@ class Room
         description: "Eindeutiger Slug für URL-Zwecke",
         example: "standard-zimmer"
     )]
+    #[Groups(['api'])]
     private string $slug;
 
     #[ORM\Column(type: 'integer')]
@@ -56,6 +60,7 @@ class Room
         description: "Kapazität des Zimmers (Anzahl der Gäste)",
         example: 2
     )]
+    #[Groups(['api'])]
     private int $capacity;
 
     #[ORM\Column(type: 'decimal', precision: 10, scale: 2)]
@@ -67,6 +72,7 @@ class Room
         format: "float",
         example: 120.00
     )]
+    #[Groups(['api'])]
     private string $basePrice;
 
     #[ORM\Column(type: 'string', length: 500, nullable: true)]
@@ -118,6 +124,7 @@ class Room
         description: "Gibt an, ob das Zimmer aktiv ist und gebucht werden kann",
         example: true
     )]
+    #[Groups(['api'])]
     private bool $isActive = true;
 
     #[ORM\Column(type: 'datetime')]

@@ -6,6 +6,7 @@ use App\Entity\Booking;
 use App\Enum\BookingStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * @extends ServiceEntityRepository<Booking>
@@ -31,7 +32,7 @@ class BookingRepository extends ServiceEntityRepository
             ->andWhere('b.status != :cancelled')
             ->andWhere('b.startDate < :end')
             ->andWhere('b.endDate > :start')
-            ->setParameter('roomId', $roomId)
+            ->setParameter('roomId', Uuid::fromString($roomId), 'uuid')
             ->setParameter('cancelled', BookingStatus::CANCELLED->value)
             ->setParameter('start', $start)
             ->setParameter('end', $end)
@@ -45,7 +46,7 @@ class BookingRepository extends ServiceEntityRepository
      */
     public function findByHash(string $hash): ?Booking
     {
-        return $this->findOneBy(['hash' => $hash]);
+        return $this->findOneBy(['bookingHash' => $hash]);
     }
 
     /**

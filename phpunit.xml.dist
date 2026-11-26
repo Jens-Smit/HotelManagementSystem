@@ -16,6 +16,12 @@
         <!-- <server name="KERNEL_CLASS" value="App\\Kernel"/> -->
     </php>
 
+    <coverage>
+        <include>
+            <directory suffix=".php">src</directory>
+        </include>
+    </coverage>
+
     <testsuites>
         <testsuite name="All Tests">
             <directory>tests</directory>

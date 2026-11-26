@@ -48,7 +48,7 @@ class AppFixtures extends Fixture
             $room = new Room();
             $room->setName($data['name']);
             $room->setSlug($data['slug']); // WICHTIG: Hier wird der "slug" gesetzt!
-            $room->setBasePrice($data['price']);
+            $room->setBasePrice((string) $data['price']);
             $room->setCapacity($data['capacity']);
             $room->setIsActive(true);
             $room->setCreatedAt(new \DateTime());

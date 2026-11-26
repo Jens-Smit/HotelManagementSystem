@@ -203,7 +203,9 @@ Before confirming ANY website booking:
 4. Check if requested date range overlaps with ANY existing booking
 5. IF conflict found -> REJECT booking with 409 error
 6. IF timeout occurs -> DECIDE: fail-open (allow) or fail-closed (reject)
-   **RECOMMENDATION**: fail-closed for production (safety over UX)
+   **CURRENT IMPLEMENTATION**: fail-open (booking proceeds, error is logged;
+   verified by tests). The strict fail-closed strategy is reserved for the
+   environment variable BOOKING_FAIL_STRATEGY in an upcoming release.
 
 ### Layer 4: Periodic Sync (Background Cron)
 Every 15 minutes:

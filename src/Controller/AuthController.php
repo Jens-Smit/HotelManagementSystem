@@ -16,6 +16,7 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Core\User\UserInterface;
 use App\Repository\UserRepository;
+use App\Entity\User;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\HttpFoundation\Cookie;
 use Gesdinet\JWTRefreshTokenBundle\Generator\RefreshTokenGeneratorInterface;
@@ -323,7 +324,7 @@ class AuthController extends AbstractController
         }
 
         try {
-            $this->passwordService->changePassword($user instanceof UserInterface ? $user : null, $data['currentPassword'], $data['newPassword']);
+            $this->passwordService->changePassword($user instanceof User ? $user : null, $data['currentPassword'], $data['newPassword']);
             return new JsonResponse(['message' => 'Passwort erfolgreich geändert.'], 200);
         } catch (BadRequestHttpException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
