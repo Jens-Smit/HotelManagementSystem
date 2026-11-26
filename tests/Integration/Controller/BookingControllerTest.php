@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\Controller;
 
+use App\Entity\Booking;
 use App\Entity\Room;
 use App\Entity\User;
 use App\Service\ICalSyncService;
@@ -109,6 +110,101 @@ class BookingControllerTest extends WebTestCase
         $this->assertFalse($response['success']);
         $this->assertEquals('VALIDATION_ERROR', $response['error']);
         $this->assertArrayHasKey('errors', $response);
+    }
+
+
+    public function testGetBookingByHashReturnsBookingData(): void
+    {
+        $room = $this->createTestRoom();
+        $this->createBooking($room, '2030-06-05', '2030-06-10');
+        $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
+
+        $created = json_decode($this->client->getResponse()->getContent(), true);
+        $hash = $created['booking_hash'];
+
+        $this->client->request('GET', '/api/bookings/' . $hash);
+        $this->assertResponseStatusCodeSame(Response::HTTP_OK);
+
+        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $this->assertTrue($data['success']);
+        $this->assertSame('Test Guest', $data['booking']['guestName']);
+        $this->assertSame($hash, $data['booking']['bookingHash']);
+        $this->assertStringContainsString('2030-06-05', $data['booking']['startDate']);
+    }
+
+    public function testGetBookingByHashReturns404ForUnknownHash(): void
+    {
+        $this->client->request('GET', '/api/bookings/' . str_repeat('ab', 32));
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $this->assertSame('BOOKING_NOT_FOUND', $data['error']);
+    }
+
+    public function testCancelBookingSucceedsForFutureBooking(): void
+    {
+        $room = $this->createTestRoom();
+        $this->createBooking($room, '2030-06-05', '2030-06-10');
+        $created = json_decode($this->client->getResponse()->getContent(), true);
+        $hash = $created['booking_hash'];
+
+        $this->client->request('DELETE', '/api/bookings/' . $hash);
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_OK);
+        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $this->assertTrue($data['success']);
+
+        /** @var \App\Entity\Booking $booking */
+        $booking = $this->entityManager->getRepository(Booking::class)->findOneBy(['bookingHash' => $hash]);
+        $this->assertSame('cancelled', $booking->getStatus());
+    }
+
+    public function testCancelBookingTooLateIsRejected(): void
+    {
+        $room = $this->createTestRoom();
+        $this->createBooking($room, (new \DateTime('+6 hours'))->format('Y-m-d'), (new \DateTime('+2 days'))->format('Y-m-d'));
+        $created = json_decode($this->client->getResponse()->getContent(), true);
+        $hash = $created['booking_hash'];
+
+        $this->client->request('DELETE', '/api/bookings/' . $hash);
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_BAD_REQUEST);
+        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $this->assertSame('CANCELLATION_TOO_LATE', $data['error']);
+    }
+
+    public function testCancelAlreadyCancelledBookingIsRejected(): void
+    {
+        $room = $this->createTestRoom();
+        $this->createBooking($room, '2030-06-05', '2030-06-10');
+        $created = json_decode($this->client->getResponse()->getContent(), true);
+        $hash = $created['booking_hash'];
+
+        $this->client->request('DELETE', '/api/bookings/' . $hash);
+        $this->assertResponseStatusCodeSame(Response::HTTP_OK);
+
+        $this->client->request('DELETE', '/api/bookings/' . $hash);
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_BAD_REQUEST);
+        $data = json_decode($this->client->getResponse()->getContent(), true);
+        $this->assertSame('ALREADY_CANCELLED', $data['error']);
+    }
+
+    public function testCancelUnknownBookingReturns404(): void
+    {
+        $this->client->request('DELETE', '/api/bookings/' . str_repeat('cd', 32));
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+    }
+
+    public function testCancelRequiresAuthentication(): void
+    {
+        self::ensureKernelShutdown();
+        $anonymousClient = static::createClient();
+
+        $anonymousClient->request('DELETE', '/api/bookings/' . str_repeat('ef', 32));
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_UNAUTHORIZED);
     }
 
     protected function tearDown(): void

@@ -7,6 +7,7 @@ use App\DTO\Request\CreateBookingRequest;
 use App\Entity\Booking;
 use App\Service\BookingService;
 use App\Repository\BookingRepository;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Nelmio\ApiDocBundle\Annotation\Model;
 use OpenApi\Attributes as OA;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -299,7 +300,16 @@ class BookingController extends AbstractController
         }
 
         $booking->setStatus('cancelled');
-        $this->bookingRepository->save($booking, true);
+
+        try {
+            $this->bookingRepository->save($booking, true);
+        } catch (UniqueConstraintViolationException $e) {
+            return new JsonResponse([
+                'success' => false,
+                'error' => 'CANCELLATION_CONFLICT',
+                'message' => 'Another cancelled booking already exists for this room and period',
+            ], Response::HTTP_CONFLICT);
+        }
 
         return new JsonResponse([
             'success' => true,

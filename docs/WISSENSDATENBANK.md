@@ -77,12 +77,13 @@ Tests abgesichert (`testBookingAdjacentDatesDoNotConflict`).
 
 ## 4. Qualität / Testabdeckung
 
-- **133 Tests, 435 Assertions – alle grün, keine Skips**
+- **145 Tests, 468 Assertions – alle grün, keine Skips**
   (`php bin/phpunit`).
-- **Zeilenabdeckung (Coverage): 70,4 %** (Methods 55,8 %, Klassen 30,2 %),
+- **Zeilenabdeckung (Coverage): 73,2 %** (Methods 60,6 %, Klassen 32,6 %),
   gemessen mit Xdebug – Kernfunktionen deutlich höher:
-  SyncCalendarsCommand 83 %, RoomController 85 %, AvailabilityController 86 %,
-  ICalSyncService 75 %, Captcha/Password/Auth 100 %.
+  SyncCalendarsCommand 83 %, RoomController 85 %, BookingController 86 %,
+  AvailabilityController 86 %, BookingRepository 100 %,
+  Captcha/Password/Auth 100 %.
 - **PHPStan Level 6: 0 Fehler** (`vendor/bin/phpstan analyse`).
 - CI: `.github/workflows/tests.yml` (PHP 8.2 + MySQL 8, Migrations, Fixtures,
   JWT-Keypair, PHPUnit).
@@ -134,6 +135,8 @@ Wichtige Test-Cluster:
 | 14 | Routenkonflikt: `/api/rooms/{id}` schluckte `/api/rooms/available` (500er) | UUID-Requirements auf `{id}`-Routen |
 | 15 | `bcmul()` ohne ext-bcmath → `GET /api/rooms/available` crash (HTTP 500) | Float-Arithmetik mit `sprintf('%.2F', …)` |
 | 16 | sabre liefert `DateTimeImmutable`, Buchungs-Spalten sind mutable `date` → iCal-Import schlug beim Flush fehl | `DateTime::createFromInterface()` beim Import |
+| 17 | `Booking`-Entity hatte keine Serializer-`Groups` → `GET /api/bookings/{hash}` lieferte ein leeres Objekt | `#[Groups(['api'])]` auf allen API-relevanten Feldern |
+| 18 | Storno einer Buchung, deren Zeitraum bereits storniert war, crashte am Unique-Constraint mit HTTP 500 | Abfangen von `UniqueConstraintViolationException` → HTTP 409 `CANCELLATION_CONFLICT` |
 
 ---
 
@@ -171,6 +174,30 @@ strikte Variante dokumentiert (siehe [pms_architecture.md](pms_architecture.md))
 | Entwickler-Handbuch | [entwicklerdokumentation.md](entwicklerdokumentation.md) |
 | Deployment-Checkliste | [deployment_checklist.md](deployment_checklist.md) |
 | Performance | [performance_testing.md](performance_testing.md) |
+
+### Nachweis der Doppelbuchungs-Vermeidung (Schichtentests)
+
+- `tests/Integration/Service/OverbookingProtectionTest.php`
+  - DB-Unique-Constraint blockt identische (Raum, Zeitraum, Status)-Tupel
+  - stornierter Zeitraum kann neu gebucht werden (Status ist Teil des Constraints)
+  - überlappende, nicht identische Zeiträume werden app-seitig via
+    `findConflicts` erkannt (nicht via Constraint)
+  - Optimistic Locking verhindert verlorene Updates bei parallelen Änderungen
+- `tests/Integration/ICalEndToEndTest.php` – komplette Kette:
+  Cron-Import einer Portalbuchung → Verfügbarkeits-API meldet belegt →
+  überlappende Direktbuchung wird mit 409 abgelehnt → angrenzende Buchung
+  (Check-out = Check-in) wird akzeptiert.
+
+**Bekannte Einschränkung des Unique-Constraints:** Der in der Doku
+angenommene partielle Index (`WHERE status != 'cancelled'`) lässt sich mit
+ORM-Attributen nicht ausdrücken; der Constraint wirkt auf alle Status. Zwei
+*stornierte* Buchungen mit identischem Zeitraum kollidieren daher – dieser
+Fall wird seit dem Fix (Nr. 18) mit HTTP 409 sauber gemeldet statt mit 500.
+
+**Hinweis zur API-Nomenklatur:** Request-Felder sind snake_case
+(`room_id`, `start_date`), serialisierte Entity-Antworten camelCase
+(`guestName`, `startDate`). Konsolidierung (NameConverter) ist als
+Roadmap-Punkt notiert.
 
 ## 8. Bekannte Grenzen / Roadmap
 
