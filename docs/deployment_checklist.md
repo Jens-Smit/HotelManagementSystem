@@ -4,7 +4,7 @@
 
 - [ ] All tests passing (`php bin/phpunit`)
 - [ ] PHPStan level 8 passing (`vendor/bin/phpstan analyse`)
-- [ ] Code style fixed (`vendor/bin/php-cs-fixer fix`)
+- [ ] Statische Analyse bestanden (`vendor/bin/phpstan analyse`)
 - [ ] `.env` properly configured (not `.env.local`)
 - [ ] APP_ENV=prod in `.env`
 - [ ] APP_DEBUG=0 in `.env`

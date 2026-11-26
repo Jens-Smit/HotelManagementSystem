@@ -14,9 +14,10 @@ Willkommen in der vollständigen Dokumentation des Hotel-Management-Systems (PMS
   - Buchungsmanagement
   - Kalendersynchronisation
   - Verfügbarkeitsprüfung
-  - Rechnungsstellung und Zahlungen
-  - Berichte und Statistiken
   - Häufig gestellte Fragen (FAQ)
+
+  *Hinweis: Das Repository enthält das Backend (API) – die Bedienung erfolgt
+  über die REST-API bzw. ein aufsetzendes Frontend.*
 
 ### Für Administratoren
 - **[Installationsanleitung](installationsanleitung.md)**: Schritt-für-Schritt-Anleitung zur Installation und Konfiguration
@@ -31,12 +32,10 @@ Willkommen in der vollständigen Dokumentation des Hotel-Management-Systems (PMS
 ### Für Entwickler
 - **[API-Dokumentation](api_dokumentation.md)**: Vollständige Dokumentation der RESTful API
   - Einführung und Basis-URL
-  - Authentifizierung mit JWT
-  - API-Endpunkte (Zimmer, Buchungen, Verfügbarkeit, Kalendersync)
-  - Fehlerbehandlung
-  - Beispielanfragen
-  - Rate Limiting
-  - API-Versionierung
+  - Authentifizierung (JWT im HttpOnly-Cookie)
+  - Implementierte Endpunkte (Auth, Zimmer, Buchungen, Verfügbarkeit, CMS, Kontakt, Captcha, Health)
+  - Fehlercodes (u. a. 409-Konflikte bei Doppelbuchungen)
+  - Beispielanfragen (curl, Python)
 
 - **[Entwicklerdokumentation](entwicklerdokumentation.md)**: Technische Dokumentation für Entwickler
   - Projektübersicht und Architektur

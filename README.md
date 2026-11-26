@@ -15,7 +15,7 @@ A Symfony-based PMS for small hotels with iCal-based channel integration for Boo
 
 ## Requirements
 
-- PHP 8.2+
+- PHP 8.2+ (extensions: pdo_mysql/pdo_pgsql, gd, mbstring, xml, curl, ctype, iconv)
 - Symfony 7.3+
 - PostgreSQL 13+ or MySQL 8+
 - Composer
@@ -34,10 +34,13 @@ cp .env .env.local
 # 3. Run migrations
 php bin/console doctrine:migrations:migrate
 
-# 4. Create first room (via CLI or admin panel)
-php bin/console app:create-room
+# 4. Generate JWT keypair
+php bin/console lexik:jwt:generate-keypair
 
-# 5. Setup cron job
+# 5. (Optional) Load demo data (user, rooms, posts)
+php bin/console doctrine:fixtures:load
+
+# 6. Setup cron job
 crontab -e
 # Add: */15 * * * * cd /path/to/project && php bin/console app:sync-calendars >> /var/log/pms-sync.log 2>&1
 ```
@@ -50,9 +53,9 @@ crontab -e
 # Database
 DATABASE_URL="postgresql://user:password@127.0.0.1:5432/pms_db"
 
-# iCal Settings
+# iCal Settings (reserved for upcoming releases, not yet active in code)
 ICAL_FETCH_TIMEOUT=5  # seconds
-BOOKING_FAIL_STRATEGY=closed  # closed|open
+BOOKING_FAIL_STRATEGY=open  # currently hard-coded fail-open (booking proceeds on iCal errors, errors are logged)
 
 # Email (for booking confirmations)
 MAILER_DSN=smtp://user:pass@smtp.example.com:587
@@ -164,8 +167,6 @@ php bin/phpunit
 # Run static analysis
 vendor/bin/phpstan analyse
 
-# Run code style fixer
-vendor/bin/php-cs-fixer fix
 ```
 
 ## Monitoring
@@ -188,7 +189,7 @@ WHERE is_active = true;
 ### Health Check
 
 ```bash
-curl http://localhost/api/health
+curl http://localhost:8000/health
 ```
 
 ## Troubleshooting

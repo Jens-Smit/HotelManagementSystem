@@ -1,730 +1,474 @@
 # API-Dokumentation für das Hotel-Management-System
 
+Version 1.0 · Status: getestet (216 Tests) · Basis: Symfony 7.3
+
+Diese Dokumentation beschreibt **alle tatsächlich implementierten Endpunkte**.
+Die maschinenlesbare OpenAPI-Spezifikation liegt unter
+[openapi.yaml](openapi.yaml) und wird zusätzlich interaktiv bereitgestellt
+unter `GET /api/doc` (Swagger UI).
+
+---
+
 ## Inhaltsverzeichnis
+
 1. [Einführung](#einführung)
 2. [Authentifizierung](#authentifizierung)
-3. [API-Endpunkte](#api-endpunkte)
-   - [Authentifizierung](#authentifizierung-endpunkte)
-   - [Zimmerverwaltung](#zimmerverwaltung)
-   - [Buchungsmanagement](#buchungsmanagement)
-   - [Verfügbarkeitsprüfung](#verfügbarkeitsprüfung)
-   - [Kalendersynchronisation](#kalendersynchronisation)
-4. [Fehlerbehandlung](#fehlerbehandlung)
-5. [Beispielanfragen](#beispielanfragen)
-6. [Rate Limiting](#rate-limiting)
-7. [API-Versionierung](#api-versionierung)
+3. [Auth-Endpunkte](#auth-endpunkte)
+4. [Zimmer-Endpunkte](#zimmer-endpunkte)
+5. [Buchungs-Endpunkte](#buchungs-endpunkte)
+6. [Verfügbarkeits-Endpunkte](#verfügbarkeits-endpunkte)
+7. [CMS-Endpunkte (Posts & Kategorien)](#cms-endpunkte)
+8. [Kontaktformular & Captcha](#kontaktformular--captcha)
+9. [System-Endpunkte](#system-endpunkte)
+10. [Fehlercodes](#fehlercodes)
+11. [Beispiele](#beispiele)
 
 ---
 
 ## Einführung
 
-Das Hotel-Management-System bietet eine RESTful API für die Verwaltung von Zimmern, Buchungen und Verfügbarkeiten. Die API ist für die Integration mit externen Systemen wie Websites, Buchungsplattformen und mobilen Anwendungen konzipiert.
-
 ### Basis-URL
+
 ```
-https://ihre-domain.de/api
+https://ihre-domain.tld
 ```
+
+Alle API-Endpunkte sind unter `/api/...` erreichbar, der Health-Check unter
+`/health`. In der Entwicklung: `http://localhost:8000`.
 
 ### Inhaltstypen
-- **Anfragen**: `application/json`
-- **Antworten**: `application/json`
 
-### HTTP-Methoden
-| Methode | Verwendung |
-|---------|------------|
-| `GET`   | Daten abrufen |
-| `POST`  | Neue Ressourcen erstellen |
-| `PUT`   | Bestehende Ressourcen vollständig aktualisieren |
-| `PATCH` | Bestehende Ressourcen teilweise aktualisieren |
-| `DELETE`| Ressourcen löschen |
+| Richtung | Content-Type |
+|---|---|
+| Request (Body) | `application/json` |
+| Response | `application/json` |
+
+### Hinweise zur Feldnamen-Konvention
+
+- **Request-Parameter** sind snake_case: `room_id`, `start_date`, `guest_name`
+- **Serialisierte Entity-Antworten** sind camelCase: `guestName`, `startDate`
 
 ---
 
 ## Authentifizierung
 
-Die API verwendet JWT (JSON Web Tokens) für die Authentifizierung. Um auf geschützte Endpunkte zuzugreifen, müssen Sie einen gültigen JWT im `Authorization`-Header Ihrer Anfrage senden.
+Die API nutzt **JWT-basierte Authentifizierung über ein HttpOnly-Cookie
+(`BEARER`)**.
 
-### Anmeldung (Token abrufen)
-**Endpunkt**: `POST /api/login_check`
+1. `POST /api/login` mit E-Mail und Passwort
+2. Der JWT wird als `BEARER`-Cookie (HttpOnly, SameSite=Lax) gesetzt
+3. Alle geschützten Endpunkte senden dieses Cookie automatisch mit
+4. Abgelaufene Tokens können über `POST /api/token/refresh` erneuert werden
 
-**Anfrage**:
+### Welche Endpunkte sind öffentlich?
+
+| Endpunkt | Zugriff |
+|---|---|
+| `POST /api/login`, `POST /api/register` | öffentlich |
+| `POST /api/token/refresh` | öffentlich (Refresh-Token nötig) |
+| `POST /api/password/request-reset`, `POST /api/password/reset` | öffentlich |
+| `POST /api/contact`, `GET/POST /api/captcha/*` | öffentlich |
+| `GET /api/posts`, `GET /api/posts/{slug}` | öffentlich (Lesen) |
+| `GET /api/categories`, `GET /api/categories/{id}`, `GET /api/categories/{id}/tree` | öffentlich (Lesen) |
+| `GET /health` | öffentlich |
+| **alle anderen `/api/*`-Routen** | **authentifiziert** (z. B. Zimmer, Buchungen, Posts schreiben) |
+
+Fehlendes oder ungültiges Cookie → `401 Unauthorized`:
+
 ```json
 {
-  "username": "ihre@email.de",
-  "password": "IhrPasswort"
-}
-```
-
-**Erfolgreiche Antwort (200 OK)**:
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refresh_token": "def50200a1b2c3d4..."
-}
-```
-
-**Header für authentifizierte Anfragen**:
-```
-Authorization: Bearer {token}
-```
-
-### Token aktualisieren
-**Endpunkt**: `POST /api/token/refresh`
-
-**Anfrage**:
-```json
-{
-  "refresh_token": "def50200a1b2c3d4..."
-}
-```
-
-**Erfolgreiche Antwort (200 OK)**:
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refresh_token": "new_refresh_token_here..."
+  "error": "Authentifizierung erforderlich",
+  "message": "Es wurde kein gültiges Autorisierungs-Cookie (BEARER) gefunden."
 }
 ```
 
 ---
 
-## API-Endpunkte
+## Auth-Endpunkte
 
-### Authentifizierung Endpunkte
+### POST /api/login — Anmeldung
 
-#### Benutzer registrieren
-**Endpunkt**: `POST /api/register`
-
-**Anfrage**:
 ```json
-{
-  "email": "neuer@benutzer.de",
-  "password": "SicheresPasswort123!",
-  "name": "Max Mustermann"
-}
+{ "email": "user@example.com", "password": "geheim" }
 ```
 
-**Erfolgreiche Antwort (201 Created)**:
+**Erfolg (200):** Token + User-Daten; `BEARER`- und `REFRESH_TOKEN`-Cookies
+werden gesetzt. **Fehler:** 400 (unvollständig), 401 (falsche Zugangsdaten),
+429 (Rate-Limit).
+
+### POST /api/register — Registrierung
+
 ```json
-{
-  "success": true,
-  "message": "Benutzer erfolgreich registriert",
-  "user": {
-    "id": "a1b2c3d4-...",
-    "email": "neuer@benutzer.de",
-    "name": "Max Mustermann",
-    "roles": ["ROLE_USER"]
-  }
-}
+{ "email": "neu@example.com", "password": "mindestens8zeichen" }
 ```
+
+**Erfolg (201):** `{"message": "Benutzer erfolgreich registriert."}` ·
+**Fehler:** 400 (Validierung/Duplikat, Passwort < 8 Zeichen).
+
+### POST /api/token/refresh — Token erneuern
+
+```json
+{ "refresh_token": "<token>" }
+```
+
+### POST /api/logout — Abmeldung
+
+Löscht die Cookies. **Erfolg (200):** `{"message": "Logout erfolgreich."}`
+
+### POST /api/password/request-reset — Reset anfordern
+
+```json
+{ "email": "user@example.com" }
+```
+
+Setzt einen gehashten Reset-Token (SHA-256, 1 Std. gültig) und versendet die
+E-Mail mit dem Klartext-Token.
+
+### POST /api/password/reset — Passwort mit Token zurücksetzen
+
+```json
+{ "email": "user@example.com", "token": "<klartext-token>", "new_password": "neuesPasswort" }
+```
+
+### POST /api/password/change — Passwort ändern (authentifiziert)
+
+```json
+{ "currentPassword": "alt", "newPassword": "neu" }
+```
+
+**Erfolg (200)** · **Fehler:** 400 (falsches aktuelles Passwort).
 
 ---
 
-### Zimmerverwaltung
+## Zimmer-Endpunkte
 
-#### Alle Zimmer abrufen
-**Endpunkt**: `GET /api/rooms`
+Alle Zimmer-Endpunkte erfordern **Authentifizierung**.
 
-**Parameter**:
-- `page` (optional): Seitenzahl für die Paginierung (Standard: 1)
-- `limit` (optional): Anzahl der Ergebnisse pro Seite (Standard: 10)
-- `is_active` (optional): Filter nach aktivem Status (true/false)
+### GET /api/rooms — Zimmerliste (paginiert)
 
-**Erfolgreiche Antwort (200 OK)**:
+Query-Parameter: `page` (int, Standard 1), `limit` (int, Standard 10),
+`is_active` (bool, Standard true).
+
 ```json
 {
   "data": [
     {
-      "id": "a1b2c3d4-...",
-      "name": "Standard Zimmer",
-      "slug": "standard-zimmer",
+      "id": "019a2b3c-…",
+      "name": "Standard Doppelzimmer",
+      "slug": "standard-doppelzimmer",
       "capacity": 2,
-      "base_price": "120.00",
-      "is_active": true,
-      "created_at": "2026-01-27T10:00:00+01:00",
-      "updated_at": "2026-01-27T10:00:00+01:00"
+      "basePrice": "85",
+      "isActive": true
     }
   ],
   "meta": {
     "current_page": 1,
     "items_per_page": 10,
-    "total_items": 1,
+    "total_items": 3,
     "total_pages": 1
   }
 }
 ```
 
-#### Einzelnes Zimmer abrufen
-**Endpunkt**: `GET /api/rooms/{id}`
+### GET /api/rooms/{id} — Ein Zimmer
 
-**Erfolgreiche Antwort (200 OK)**:
-```json
-{
-  "id": "a1b2c3d4-...",
-  "name": "Standard Zimmer",
-  "slug": "standard-zimmer",
-  "capacity": 2,
-  "base_price": "120.00",
-  "ical_url_booking": "https://admin.booking.com/ical/...",
-  "ical_url_homeaway": "https://www.homeaway.com/ical/...",
-  "is_active": true,
-  "created_at": "2026-01-27T10:00:00+01:00",
-  "updated_at": "2026-01-27T10:00:00+01:00"
-}
-```
+`{id}` ist eine UUID. **Erfolg (200)** mit Zimmerdaten (wie oben) ·
+**404:** `{"success": false, "error": "ROOM_NOT_FOUND"}`
 
-#### Zimmer erstellen
-**Endpunkt**: `POST /api/rooms`
+### GET /api/rooms/available — Verfügbare Zimmer suchen
 
-**Anfrage**:
-```json
-{
-  "name": "Superior Zimmer",
-  "slug": "superior-zimmer",
-  "capacity": 3,
-  "base_price": "180.00",
-  "ical_url_booking": "https://admin.booking.com/ical/...",
-  "ical_url_homeaway": "https://www.homeaway.com/ical/...",
-  "is_active": true
-}
-```
+Query-Parameter: `checkIn` (Y-m-d, Pflicht), `checkOut` (Y-m-d, Pflicht),
+`capacity` (int, Standard 1).
 
-**Erfolgreiche Antwort (201 Created)**:
 ```json
 {
   "success": true,
-  "message": "Zimmer erfolgreich erstellt",
-  "room": {
-    "id": "e5f6g7h8-...",
-    "name": "Superior Zimmer",
-    "slug": "superior-zimmer",
-    "capacity": 3,
-    "base_price": "180.00",
-    "is_active": true,
-    "created_at": "2026-01-27T10:30:00+01:00",
-    "updated_at": "2026-01-27T10:30:00+01:00"
-  }
+  "rooms": [
+    {
+      "id": "019a2b3c-…",
+      "name": "Luxus Suite",
+      "capacity": 4,
+      "price_per_night": "250.00",
+      "total_price": "750.00"
+    }
+  ],
+  "search_criteria": { "check_in": "…", "check_out": "…", "capacity": 2 }
 }
 ```
 
-#### Zimmer aktualisieren
-**Endpunkt**: `PUT /api/rooms/{id}`
+**Fehler:** 400 `MISSING_DATES` / `INVALID_DATE_FORMAT` / `INVALID_DATE_RANGE`.
 
-**Anfrage**:
-```json
-{
-  "name": "Superior Zimmer (Aktualisiert)",
-  "capacity": 4,
-  "base_price": "200.00",
-  "is_active": true
-}
-```
-
-**Erfolgreiche Antwort (200 OK)**:
-```json
-{
-  "success": true,
-  "message": "Zimmer erfolgreich aktualisiert",
-  "room": {
-    "id": "e5f6g7h8-...",
-    "name": "Superior Zimmer (Aktualisiert)",
-    "slug": "superior-zimmer",
-    "capacity": 4,
-    "base_price": "200.00",
-    "is_active": true,
-    "created_at": "2026-01-27T10:30:00+01:00",
-    "updated_at": "2026-01-27T10:45:00+01:00"
-  }
-}
-```
-
-#### Zimmer löschen
-**Endpunkt**: `DELETE /api/rooms/{id}`
-
-**Erfolgreiche Antwort (204 No Content)**:
-```
-(Leere Antwort)
-```
+> **Hinweis:** Zimmer werden über `POST /api/categories`-analog **nicht**
+> per API angelegt – die Anlage erfolgt derzeit über das Admin-Panel bzw.
+> direkt in der Datenbank (Roadmap: `POST /api/rooms`).
 
 ---
 
-### Buchungsmanagement
+## Buchungs-Endpunkte
 
-#### Alle Buchungen abrufen
-**Endpunkt**: `GET /api/bookings`
+Alle Buchungs-Endpunkte erfordern **Authentifizierung**.
 
-**Parameter**:
-- `page` (optional): Seitenzahl für die Paginierung (Standard: 1)
-- `limit` (optional): Anzahl der Ergebnisse pro Seite (Standard: 10)
-- `room_id` (optional): Filter nach Zimmer-ID
-- `status` (optional): Filter nach Buchungsstatus (confirmed, cancelled, pending, blocked)
-- `start_date` (optional): Filter nach Startdatum (YYYY-MM-DD)
-- `end_date` (optional): Filter nach Enddatum (YYYY-MM-DD)
+### POST /api/bookings — Buchung erstellen
 
-**Erfolgreiche Antwort (200 OK)**:
+Prüft **vor** dem Anlegen: interne Konflikte → externe iCal-Kalender
+(Booking.com, HomeAway) in Echtzeit.
+
 ```json
 {
-  "data": [
-    {
-      "id": "i9j8k7l6-...",
-      "room": {
-        "id": "a1b2c3d4-...",
-        "name": "Standard Zimmer"
-      },
-      "start_date": "2026-03-15",
-      "end_date": "2026-03-18",
-      "guest_name": "Max Mustermann",
-      "guest_email": "max@example.com",
-      "guest_phone": "+49 123 456789",
-      "total_price": "360.00",
-      "source": "website",
-      "status": "confirmed",
-      "booking_hash": "a3c9f2e1...",
-      "created_at": "2026-01-27T11:00:00+01:00",
-      "updated_at": "2026-01-27T11:00:00+01:00"
-    }
-  ],
-  "meta": {
-    "current_page": 1,
-    "items_per_page": 10,
-    "total_items": 1,
-    "total_pages": 1
-  }
-}
-```
-
-#### Einzelne Buchung abrufen
-**Endpunkt**: `GET /api/bookings/{id}`
-
-**Erfolgreiche Antwort (200 OK)**:
-```json
-{
-  "id": "i9j8k7l6-...",
-  "room": {
-    "id": "a1b2c3d4-...",
-    "name": "Standard Zimmer"
-  },
-  "start_date": "2026-03-15",
-  "end_date": "2026-03-18",
-  "guest_name": "Max Mustermann",
-  "guest_email": "max@example.com",
-  "guest_phone": "+49 123 456789",
-  "total_price": "360.00",
-  "source": "website",
-  "status": "confirmed",
-  "external_id": "EXT12345",
-  "notes": "Frühstück inklusive",
-  "booking_hash": "a3c9f2e1...",
-  "created_at": "2026-01-27T11:00:00+01:00",
-  "updated_at": "2026-01-27T11:00:00+01:00"
-}
-```
-
-#### Buchung erstellen
-**Endpunkt**: `POST /api/bookings`
-
-**Anfrage**:
-```json
-{
-  "room_id": "a1b2c3d4-...",
-  "start_date": "2026-03-15",
-  "end_date": "2026-03-18",
+  "room_id": "019a2b3c-…",
+  "start_date": "2026-06-01",
+  "end_date": "2026-06-05",
   "guest_name": "Max Mustermann",
   "guest_email": "max@example.com",
   "guest_phone": "+49 123 456789"
 }
 ```
 
-**Erfolgreiche Antwort (201 Created)**:
+**Erfolg (201):**
+
 ```json
 {
   "success": true,
-  "booking_id": "i9j8k7l6-...",
-  "booking_hash": "a3c9f2e1...",
-  "total_price": "360.00",
-  "message": "Buchung erfolgreich erstellt. Bitte überprüfen Sie Ihre E-Mails für die Bestätigung."
+  "booking_id": "019a2b4d-…",
+  "booking_hash": "3f9c…",
+  "total_price": 340.0,
+  "message": "Booking confirmed. Confirmation email sent."
 }
 ```
 
-**Fehlerantwort bei Verfügbarkeitskonflikt (409 Conflict)**:
-```json
-{
-  "success": false,
-  "error": "AVAILABILITY_CONFLICT",
-  "message": "Zimmer nicht verfügbar (externe Buchung existiert)",
-  "details": {
-    "conflict_source": "booking_com",
-    "conflict_dates": ["2026-03-15", "2026-03-16", "2026-03-17"]
-  },
-  "suggested_alternatives": [
-    {
-      "room_id": "e5f6g7h8-...",
-      "room_name": "Superior Zimmer",
-      "price_difference": "+20.00"
-    }
-  ]
-}
-```
+**Fehlercodes:**
 
-#### Buchung aktualisieren
-**Endpunkt**: `PUT /api/bookings/{id}`
+| HTTP | error | Bedeutung |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | Ungültige Felder (Details unter `errors`) |
+| 400 | `INVALID_JSON` | Kein gültiges JSON |
+| 404 | `ROOM_NOT_FOUND` | Zimmer existiert nicht oder ist inaktiv |
+| 409 | `INTERNAL_CONFLICT` | Überlappung mit vorhandener Buchung (mit `details.conflict_count` und `suggested_alternatives`) |
+| 409 | `EXTERNAL_CONFLICT` | Externe Portalbuchung im Zeitraum (`details.conflict_source`: `booking_com` \| `homeaway`) |
+| 409 | `CONCURRENT_MODIFICATION` | Parallel geändert (Optimistic Lock), bitte wiederholen |
+| 500 | `TRANSACTION_FAILED` / `SYSTEM_ERROR` | Interner Fehler |
 
-**Anfrage**:
-```json
-{
-  "guest_name": "Max Mustermann (Aktualisiert)",
-  "guest_phone": "+49 987 654321",
-  "status": "confirmed",
-  "notes": "Sonderwünsche: Allergikerfreundliches Zimmer"
-}
-```
+Angrenzende Zeiträume (Check-out = Check-in des Gastes) sind erlaubt.
 
-**Erfolgreiche Antwort (200 OK)**:
+### GET /api/bookings/{hash} — Buchung abrufen
+
+`{hash}` ist der 64-Zeichen-`booking_hash` (kein Login des Gastes nötig,
+Hash ist sufficiently geheim). **Erfolg (200):**
+
 ```json
 {
   "success": true,
-  "message": "Buchung erfolgreich aktualisiert",
   "booking": {
-    "id": "i9j8k7l6-...",
-    "room": {
-      "id": "a1b2c3d4-...",
-      "name": "Standard Zimmer"
-    },
-    "start_date": "2026-03-15",
-    "end_date": "2026-03-18",
-    "guest_name": "Max Mustermann (Aktualisiert)",
-    "guest_email": "max@example.com",
-    "guest_phone": "+49 987 654321",
-    "total_price": "360.00",
+    "id": "019a2b4d-…",
+    "room": { "id": "…", "name": "…", "slug": "…", "capacity": 2, "basePrice": "85", "isActive": true },
+    "startDate": "2026-06-01T00:00:00+00:00",
+    "endDate": "2026-06-05T00:00:00+00:00",
+    "guestName": "Max Mustermann",
+    "guestEmail": "max@example.com",
+    "guestPhone": "+49 123 456789",
+    "totalPrice": "340",
+    "source": "website",
     "status": "confirmed",
-    "notes": "Sonderwünsche: Allergikerfreundliches Zimmer",
-    "booking_hash": "a3c9f2e1...",
-    "created_at": "2026-01-27T11:00:00+01:00",
-    "updated_at": "2026-01-27T11:30:00+01:00"
+    "bookingHash": "3f9c…"
   }
 }
 ```
 
-#### Buchung stornieren
-**Endpunkt**: `PATCH /api/bookings/{id}/cancel`
+**404:** `BOOKING_NOT_FOUND`.
 
-**Erfolgreiche Antwort (200 OK)**:
-```json
-{
-  "success": true,
-  "message": "Buchung erfolgreich storniert",
-  "booking": {
-    "id": "i9j8k7l6-...",
-    "status": "cancelled",
-    "updated_at": "2026-01-27T11:45:00+01:00"
-  }
-}
-```
+### DELETE /api/bookings/{hash} — Buchung stornieren
+
+**Erfolg (200):** `{"success": true, "message": "Booking cancelled successfully."}`
+
+| HTTP | error | Bedeutung |
+|---|---|---|
+| 400 | `CANCELLATION_TOO_LATE` | Check-in in weniger als 24 Stunden |
+| 400 | `ALREADY_CANCELLED` | Buchung ist bereits storniert |
+| 404 | `BOOKING_NOT_FOUND` | Unbekannter Hash |
+| 409 | `CANCELLATION_CONFLICT` | Für den Zeitraum existiert bereits eine stornierte Buchung |
 
 ---
 
-### Verfügbarkeitsprüfung
+## Verfügbarkeits-Endpunkte
 
-#### Verfügbarkeit prüfen
-**Endpunkt**: `GET /api/availability`
+### GET /api/rooms/{id}/availability — Verfügbarkeit prüfen (authentifiziert)
 
-**Parameter**:
-- `room_id` (erforderlich): Die ID des Zimmers
-- `start_date` (erforderlich): Startdatum (YYYY-MM-DD)
-- `end_date` (erforderlich): Enddatum (YYYY-MM-DD)
+Query-Parameter: `start_date` (Y-m-d, Pflicht), `end_date` (Y-m-d, Pflicht),
+`real_time` (bool, Standard true – prüft zusätzlich externe iCal-Kalender).
 
-**Erfolgreiche Antwort (200 OK)**:
 ```json
 {
   "available": true,
-  "room_id": "a1b2c3d4-...",
-  "start_date": "2026-03-15",
-  "end_date": "2026-03-18",
-  "price_per_night": "120.00",
-  "total_price": "360.00",
-  "last_checked": "2026-01-27T12:00:00+01:00",
-  "check_sources": ["internal", "booking_com", "homeaway"],
-  "breakdown": {
-    "2026-03-15": {"price": "120.00", "available": true},
-    "2026-03-16": {"price": "120.00", "available": true},
-    "2026-03-17": {"price": "120.00", "available": true}
-  }
+  "room_id": "019a2b3c-…",
+  "room_name": "Standard Doppelzimmer",
+  "start_date": "2026-06-01",
+  "end_date": "2026-06-05",
+  "checks_performed": ["internal_database", "booking_com_ical", "homeaway_ical"],
+  "price_per_night": "85",
+  "total_price": 340.0,
+  "nights": 4,
+  "last_checked": "2026-01-15T10:30:00+00:00"
 }
 ```
 
-**Antwort bei Nichtverfügbarkeit (200 OK)**:
-```json
-{
-  "available": false,
-  "room_id": "a1b2c3d4-...",
-  "start_date": "2026-03-15",
-  "end_date": "2026-03-18",
-  "conflict_dates": ["2026-03-16", "2026-03-17"],
-  "conflict_sources": ["booking_com"],
-  "last_checked": "2026-01-27T12:05:00+01:00",
-  "check_sources": ["internal", "booking_com", "homeaway"]
-}
-```
+Bei Konflikt: `"available": false` mit `conflict_reason`
+(`internal_booking`, `booking_com_reservation`, `homeaway_reservation`)
+und – bei internem Konflikt – `conflict_details` pro Buchung.
 
-#### Verfügbarkeitskalender abrufen
-**Endpunkt**: `GET /api/availability/calendar`
-
-**Parameter**:
-- `room_id` (erforderlich): Die ID des Zimmers
-- `start_date` (erforderlich): Startdatum (YYYY-MM-DD)
-- `end_date` (erforderlich): Enddatum (YYYY-MM-DD)
-- `source` (optional): Verfügbarkeitsquelle (internal, booking_com, homeaway)
-
-**Erfolgreiche Antwort (200 OK)**:
-```json
-{
-  "room_id": "a1b2c3d4-...",
-  "room_name": "Standard Zimmer",
-  "start_date": "2026-03-01",
-  "end_date": "2026-03-31",
-  "availability": {
-    "2026-03-01": {"available": true, "price": "120.00", "source": "internal"},
-    "2026-03-02": {"available": false, "price": "120.00", "source": "booking_com"},
-    "2026-03-03": {"available": true, "price": "120.00", "source": "internal"},
-    "...": "..."
-  }
-}
-```
+**Fehler:** 400 `MISSING_DATES` / `INVALID_DATE_FORMAT` / `INVALID_DATE_RANGE`,
+404 `ROOM_NOT_FOUND`.
 
 ---
 
-### Kalendersynchronisation
+## CMS-Endpunkte
 
-#### Kalender manuell synchronisieren
-**Endpunkt**: `POST /api/calendar/sync`
+### Posts
 
-**Anfrage**:
+| Methode | Route | Zugriff |
+|---|---|---|
+| GET | `/api/posts` | öffentlich |
+| GET | `/api/posts/{slug}` | öffentlich |
+| POST | `/api/posts` | authentifiziert |
+| POST | `/api/posts/upload` (Medien-Upload) | authentifiziert |
+| POST | `/api/posts/{id}` (Update) | authentifiziert |
+| DELETE | `/api/posts/{id}` | authentifiziert |
+
+Medien-Uploads werden durch `FileSecurityService` validiert: nur JPEG/PNG/
+GIF/WebP, max. 5 MB, 100–10 000 px, MIME-/Inhaltsabgleich, keine
+Mehrfach-Extensions.
+
+### Kategorien
+
+| Methode | Route | Zugriff |
+|---|---|---|
+| GET | `/api/categories` | öffentlich |
+| GET | `/api/categories/{id}` | öffentlich |
+| GET | `/api/categories/{id}/tree` | öffentlich |
+| POST | `/api/categories` | authentifiziert |
+| PUT | `/api/categories/{id}` | authentifiziert |
+| DELETE | `/api/categories/{id}` | authentifiziert |
+
+---
+
+## Kontaktformular & Captcha
+
+### POST /api/contact (öffentlich)
+
+```json
+{ "name": "Max", "email": "max@example.com", "subject": "Anfrage", "message": "…" }
+```
+
+**Erfolg (200):** `{"message": "Ihre Nachricht wurde erfolgreich gesendet."}` ·
+**400:** Validierungsfehler (`errors`) · **500:** Mailer-Fehler.
+
+### GET /api/captcha/generate / POST /api/captcha/verify (öffentlich)
+
+Generiert bzw. verifiziert ein Bild-Captcha (GD-basiert); Lösung wird
+serverseitig in der Session gehalten.
+
+---
+
+## System-Endpunkte
+
+### GET /health (öffentlich)
+
+```json
+{ "status": "healthy", "timestamp": "2026-01-15T10:30:00+00:00", "database": "connected" }
+```
+
+Bei Datenbank-Fehler: **503** mit `"status": "unhealthy"`,
+`"database": "disconnected"`.
+
+### Interaktive API-Doku
+
+- `GET /api/doc` – Swagger UI
+- `GET /api/doc.json` – OpenAPI-JSON
+
+---
+
+## Fehlercodes
+
+Zentrale, vom `ExceptionListener` gelieferte Fehlerstruktur:
+
 ```json
 {
-  "room_id": "a1b2c3d4-...",
-  "force": true
+  "error": "Kurzmeldung",
+  "timestamp": "2026-01-15T10:30:00+00:00"
 }
 ```
 
-**Erfolgreiche Antwort (200 OK)**:
-```json
-{
-  "success": true,
-  "message": "Kalendersynchronisation abgeschlossen",
-  "room_id": "a1b2c3d4-...",
-  "new_bookings": 2,
-  "updated_bookings": 0,
-  "deleted_bookings": 0,
-  "last_sync": "2026-01-27T12:15:00+01:00"
-}
+In `dev` werden zusätzliche Felder (`exception`, `file`, `line`, `trace`)
+mitgeliefert – in `prod` bewusst **nicht** (kein Information Leakage).
+
+---
+
+## Beispiele
+
+### Buchung mit curl (Cookie-Auth)
+
+```bash
+# 1. Login (Cookie speichern)
+curl -c cookies.txt -X POST https://ihre-domain.tld/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "geheim"}'
+
+# 2. Verfügbarkeit prüfen
+curl -b cookies.txt \
+  "https://ihre-domain.tld/api/rooms/019a2b3c-…/availability?start_date=2026-06-01&end_date=2026-06-05"
+
+# 3. Buchung anlegen
+curl -b cookies.txt -X POST https://ihre-domain.tld/api/bookings \
+  -H "Content-Type: application/json" \
+  -d '{"room_id": "019a2b3c-…", "start_date": "2026-06-01", "end_date": "2026-06-05", "guest_name": "Max Mustermann", "guest_email": "max@example.com"}'
 ```
 
-#### Synchronisationsstatus abrufen
-**Endpunkt**: `GET /api/calendar/sync/status`
+### Doppelbuchungs-Fall
 
-**Erfolgreiche Antwort (200 OK)**:
+```bash
+# Zweite, überlappende Buchung -> 409 INTERNAL_CONFLICT
+curl -b cookies.txt -X POST https://ihre-domain.tld/api/bookings \
+  -H "Content-Type: application/json" \
+  -d '{"room_id": "019a2b3c-…", "start_date": "2026-06-03", "end_date": "2026-06-08", "guest_name": "Gast 2", "guest_email": "gast2@example.com"}'
+```
+
 ```json
 {
-  "last_sync": "2026-01-27T12:15:00+01:00",
-  "next_sync": "2026-01-27T12:30:00+01:00",
-  "rooms": [
-    {
-      "room_id": "a1b2c3d4-...",
-      "room_name": "Standard Zimmer",
-      "last_sync": "2026-01-27T12:15:00+01:00",
-      "last_sync_status": "success",
-      "last_sync_message": "2 neue Buchungen importiert"
-    }
+  "success": false,
+  "error": "INTERNAL_CONFLICT",
+  "message": "Room already booked for these dates",
+  "details": { "conflict_count": 1 },
+  "suggested_alternatives": [
+    { "room_id": "019a2b99-…", "room_name": "Luxus Suite", "capacity": 4, "base_price": "250.00" }
   ]
 }
 ```
 
----
+### Python (Requests)
 
-## Fehlerbehandlung
-
-Die API gibt standardisierte Fehlermeldungen im folgenden Format zurück:
-
-```json
-{
-  "success": false,
-  "error": "FEHLER_CODE",
-  "message": "Beschreibung des Fehlers",
-  "details": {
-    "field": "Feldname, das den Fehler verursacht hat",
-    "value": "Ungültiger Wert"
-  }
-}
-```
-
-### Häufige Fehlercodes
-
-| Fehlercode | HTTP-Status | Beschreibung |
-|------------|-------------|--------------|
-| `AUTHENTICATION_FAILED` | 401 | Ungültige Anmeldedaten oder abgelaufenes Token |
-| `ACCESS_DENIED` | 403 | Keine Berechtigung für diese Aktion |
-| `VALIDATION_ERROR` | 400 | Validierungsfehler in den Eingabedaten |
-| `RESOURCE_NOT_FOUND` | 404 | Die angeforderte Ressource existiert nicht |
-| `AVAILABILITY_CONFLICT` | 409 | Verfügbarkeitskonflikt mit bestehender Buchung |
-| `AVAILABILITY_CHECK_FAILED` | 503 | Verfügbarkeitsprüfung konnte nicht durchgeführt werden |
-| `RATE_LIMIT_EXCEEDED` | 429 | Zu viele Anfragen |
-| `INTERNAL_SERVER_ERROR` | 500 | Interner Serverfehler |
-
-### Beispiel-Fehlerantworten
-
-**Validierungsfehler (400 Bad Request)**:
-```json
-{
-  "success": false,
-  "error": "VALIDATION_ERROR",
-  "message": "Es sind Validierungsfehler aufgetreten",
-  "details": {
-    "start_date": "Das Startdatum muss ein gültiges Datum sein",
-    "end_date": "Das Enddatum muss nach dem Startdatum liegen"
-  }
-}
-```
-
-**Nicht gefunden (404 Not Found)**:
-```json
-{
-  "success": false,
-  "error": "RESOURCE_NOT_FOUND",
-  "message": "Zimmer mit ID a1b2c3d4-... nicht gefunden"
-}
-```
-
-**Authentifizierungsfehler (401 Unauthorized)**:
-```json
-{
-  "success": false,
-  "error": "AUTHENTICATION_FAILED",
-  "message": "Ungültiges oder abgelaufenes Token"
-}
-```
-
----
-
-## Beispielanfragen
-
-### Buchung erstellen mit cURL
-```bash
-curl -X POST https://ihre-domain.de/api/bookings \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
-  -d '{
-    "room_id": "a1b2c3d4-...",
-    "start_date": "2026-03-15",
-    "end_date": "2026-03-18",
-    "guest_name": "Max Mustermann",
-    "guest_email": "max@example.com",
-    "guest_phone": "+49 123 456789"
-  }'
-```
-
-### Verfügbarkeit prüfen mit JavaScript (Fetch API)
-```javascript
-fetch('https://ihre-domain.de/api/availability?room_id=a1b2c3d4-...&start_date=2026-03-15&end_date=2026-03-18', {
-  method: 'GET',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
-  }
-})
-.then(response => response.json())
-.then(data => {
-  if (data.available) {
-    console.log('Zimmer verfügbar! Preis:', data.total_price);
-  } else {
-    console.log('Zimmer nicht verfügbar an folgenden Tagen:', data.conflict_dates);
-  }
-})
-.catch(error => console.error('Fehler:', error));
-```
-
-### Alle Zimmer abrufen mit Python (Requests)
 ```python
 import requests
 
-response = requests.get(
-    'https://ihre-domain.de/api/rooms',
-    headers={
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
-    },
-    params={
-        'page': 1,
-        'limit': 10,
-        'is_active': True
-    }
-)
+base = "https://ihre-domain.tld"
+s = requests.Session()
 
-if response.status_code == 200:
-    rooms = response.json()['data']
-    for room in rooms:
-        print(f"{room['name']} - {room['base_price']}€ pro Nacht")
-else:
-    print('Fehler:', response.json())
+s.post(f"{base}/api/login", json={
+    "email": "user@example.com", "password": "geheim"
+})
+
+rooms = s.get(f"{base}/api/rooms", params={"page": 1, "limit": 10}).json()
+
+booking = s.post(f"{base}/api/bookings", json={
+    "room_id": rooms["data"][0]["id"],
+    "start_date": "2026-06-01",
+    "end_date": "2026-06-05",
+    "guest_name": "Max Mustermann",
+    "guest_email": "max@example.com",
+})
+
+print(booking.status_code, booking.json())
 ```
 
 ---
 
-## Rate Limiting
-
-Die API implementiert Rate Limiting, um Missbrauch zu verhindern. Die aktuellen Limits sind:
-
-- **Authentifizierte Anfragen**: 100 Anfragen pro Minute pro Benutzer
-- **Nicht authentifizierte Anfragen**: 30 Anfragen pro Minute pro IP-Adresse
-
-### Rate Limiting Header
-Jede Antwort enthält die folgenden Header, die den aktuellen Status des Rate Limitings anzeigen:
-
-| Header | Beschreibung |
-|--------|--------------|
-| `X-RateLimit-Limit` | Maximale Anzahl von Anfragen im aktuellen Zeitfenster |
-| `X-RateLimit-Remaining` | Verbleibende Anzahl von Anfragen im aktuellen Zeitfenster |
-| `X-RateLimit-Reset` | Zeit in Sekunden, bis das Zeitfenster zurückgesetzt wird |
-
-### Beispiel-Header
-```
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 95
-X-RateLimit-Reset: 42
-```
-
-### Fehlerantwort bei Rate Limit Überschreitung (429 Too Many Requests)
-```json
-{
-  "success": false,
-  "error": "RATE_LIMIT_EXCEEDED",
-  "message": "Zu viele Anfragen. Bitte versuchen Sie es später erneut.",
-  "retry_after": 60
-}
-```
-
----
-
-## API-Versionierung
-
-Die API verwendet eine Versionierung im URL-Pfad, um abwärtskompatible Änderungen zu ermöglichen.
-
-### Aktuelle Version
-```
-https://ihre-domain.de/api/v1/...
-```
-
-### Versionierungsschema
-- **Major-Version (v1)**: Größere Änderungen, die die Abwärtskompatibilität brechen
-- **Minor-Version**: Abwärtskompatible neue Funktionen (werden in der Dokumentation gekennzeichnet)
-
-### Beispiel für Versionierung
-```
-GET /api/v1/rooms       # Aktuelle Version
-GET /api/v2/rooms       # Zukünftige Version 2
-```
-
-### Deprecation Policy
-- Alte Versionen werden mindestens 6 Monate nach Einführung einer neuen Major-Version unterstützt
-- Deprecierte Endpunkte werden in der Dokumentation gekennzeichnet
-- Clients werden über die `Warning`-Header über bevorstehende Änderungen informiert
-
----
+Siehe auch: [Wissensdatenbank](WISSENSDATENBANK.md) ·
+[Architektur](pms_architecture.md) · [Entwicklerdokumentation](entwicklerdokumentation.md)

@@ -1175,11 +1175,21 @@ class RoomControllerTest extends WebTestCase
         $this->assertEquals('RESOURCE_NOT_FOUND', $responseData['error']);
     }
 
-    private function getValidToken(): string
+    private function createClientWithLogin(): KernelBrowser
     {
-        // Hier sollte ein gültiges JWT-Token für Tests generiert werden
-        // Dies ist ein Platzhalter - in der Praxis sollte ein Test-Benutzer verwendet werden
-        return 'valid.jwt.token.here';
+        // In der Praxis: echten Test-User anlegen und über /api/login
+        // das BEARER-Cookie setzen (so wie es die Tests in
+        // tests/Integration/Controller/ machen).
+        $client = static::createClient();
+
+        $client->request('POST', '/api/login', [], [], [
+            'CONTENT_TYPE' => 'application/json',
+        ], json_encode([
+            'email' => 'test@example.com',
+            'password' => 'password123',
+        ]));
+
+        return $client;
     }
 
     protected function tearDown(): void
@@ -1383,8 +1393,6 @@ jobs:
       - name: Run PHPStan
         run: vendor/bin/phpstan analyse
 
-      - name: Run PHP-CS-Fixer
-        run: vendor/bin/php-cs-fixer fix --dry-run --diff
 ```
 
 ### Deployment-Pipeline

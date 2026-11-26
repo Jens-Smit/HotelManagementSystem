@@ -148,6 +148,8 @@ Wichtige Test-Cluster:
 | 16 | sabre liefert `DateTimeImmutable`, Buchungs-Spalten sind mutable `date` → iCal-Import schlug beim Flush fehl | `DateTime::createFromInterface()` beim Import |
 | 17 | `Booking`-Entity hatte keine Serializer-`Groups` → `GET /api/bookings/{hash}` lieferte ein leeres Objekt | `#[Groups(['api'])]` auf allen API-relevanten Feldern |
 | 18 | Storno einer Buchung, deren Zeitraum bereits storniert war, crashte am Unique-Constraint mit HTTP 500 | Abfangen von `UniqueConstraintViolationException` → HTTP 409 `CANCELLATION_CONFLICT` |
+| 19 | Dokumentation beschrieb nicht existierende Endpunkte (`POST /api/rooms`, Kalender-Sync-Endpunkte, Rechnungsstellung), falsche Health-Route (`/api/health`) und nicht vorhandene Konsolen-Befehle (`app:create-room`, `app:create-user`) | API-Doku auf die tatsächlich implementierten Routen neu geschrieben (`debug:router` als Quelle), Health-Route korrigiert zu `GET /health`, Installations-/Benutzerhandbuch auf API-only-Realität umgestellt |
+| 20 | `docs/openapi.yaml` war veraltet | Aus den Code-Annotationen regeneriert (`nelmio:apidoc:dump`), Beschreibung im Nelmio-Config auf den PMS-Zweck korrigiert |
 
 ---
 
@@ -164,7 +166,7 @@ php bin/console lexik:jwt:generate-keypair
 */15 * * * * cd /pfad/zum/projekt && php bin/console app:sync-calendars
 ```
 
-Gesundheit prüfen: `GET /api/health` · Sync-Status: Spalten
+Gesundheit prüfen: `GET /health` · Sync-Status: Spalten
 `rooms.last_sync_booking` / `rooms.last_sync_homeaway`.
 
 Fehlverhalten bei iCal-Ausfällen: aktuell **fail-open** (Buchung wird nicht
