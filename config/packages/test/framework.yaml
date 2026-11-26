@@ -6,3 +6,5 @@ framework:
     session:
         storage_factory_id: session.storage.factory.mock_file
     csrf_protection: false  # ✅ CSRF in Tests deaktivieren
+    http_client:
+        mock_response_factory: app.test.ical_http_mock

@@ -158,7 +158,7 @@ quality status and all fixes is available in **[docs/WISSENSDATENBANK.md](docs/W
 ## Testing
 
 ```bash
-# Run all tests (115 tests, all green)
+# Run all tests (133 tests, all green, ~70% line coverage)
 php bin/phpunit
 
 # Run static analysis

@@ -1,0 +1,4 @@
+services:
+    app.test.ical_http_mock:
+        class: App\Tests\HttpMock\IcalMockResponseFactory
+        public: true

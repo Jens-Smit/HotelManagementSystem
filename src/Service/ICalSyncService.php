@@ -116,12 +116,15 @@ class ICalSyncService
             }
 
             try {
-                $startDate = $event->DTSTART?->getDateTime();
-                $endDate = $event->DTEND?->getDateTime();
+                $startImmutable = $event->DTSTART?->getDateTime();
+                $endImmutable = $event->DTEND?->getDateTime();
 
-                if (!$startDate || !$endDate) {
+                if (!$startImmutable || !$endImmutable) {
                     continue;
                 }
+
+                $startDate = \DateTime::createFromInterface($startImmutable);
+                $endDate = \DateTime::createFromInterface($endImmutable);
 
                 $summary = (string) ($event->SUMMARY ?? '');
                 $guestName = $this->extractGuestName($summary);

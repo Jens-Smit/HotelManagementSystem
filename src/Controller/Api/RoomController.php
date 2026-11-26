@@ -72,7 +72,7 @@ class RoomController extends AbstractController
         content: new OA\JsonContent(ref: new Model(type: Room::class, groups: ["api"]))
     )]
     #[OA\Response(response: 404, description: "Zimmer nicht gefunden")]
-    #[Route('/{id}', name: 'api_rooms_show', methods: ['GET'])]
+    #[Route('/{id}', name: 'api_rooms_show', methods: ['GET'], requirements: ['id' => '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'])]
     public function show(string $id): JsonResponse
     {
         $room = $this->roomRepository->find($id);
@@ -147,7 +147,7 @@ class RoomController extends AbstractController
             'success' => true,
             'rooms' => array_map(function($room) use ($nights) {
                 $basePrice = $room->getBasePrice();
-                $totalPrice = bcmul($basePrice, (string)$nights, 2);
+                $totalPrice = sprintf('%.2F', (float) $basePrice * (int) $nights);
 
                 return [
                     'id' => $room->getId(),

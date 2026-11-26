@@ -77,8 +77,12 @@ Tests abgesichert (`testBookingAdjacentDatesDoNotConflict`).
 
 ## 4. Qualität / Testabdeckung
 
-- **115 Tests, 383 Assertions – alle grün, keine Skips**
+- **133 Tests, 435 Assertions – alle grün, keine Skips**
   (`php bin/phpunit`).
+- **Zeilenabdeckung (Coverage): 70,4 %** (Methods 55,8 %, Klassen 30,2 %),
+  gemessen mit Xdebug – Kernfunktionen deutlich höher:
+  SyncCalendarsCommand 83 %, RoomController 85 %, AvailabilityController 86 %,
+  ICalSyncService 75 %, Captcha/Password/Auth 100 %.
 - **PHPStan Level 6: 0 Fehler** (`vendor/bin/phpstan analyse`).
 - CI: `.github/workflows/tests.yml` (PHP 8.2 + MySQL 8, Migrations, Fixtures,
   JWT-Keypair, PHPUnit).
@@ -90,6 +94,21 @@ Wichtige Test-Cluster:
   Validierungsfehler.
 - `tests/Unit/Service/ICalSyncServiceTest.php` – iCal-Parsing (echte
   sabre-Pipeline mit Mock-HttpClient), Konflikt-Erkennung, freie Zeiträume.
+- `tests/Integration/Controller/RoomControllerTest.php` – Zimmer-API:
+  Liste/Pagination, is_active-Filter, Detail, 404, verfügbare Zimmer
+  (belegte Zimmer werden ausgeschlossen).
+- `tests/Integration/Controller/AvailabilityControllerTest.php` –
+  Verfügbarkeits-API: freier Zeitraum mit Preisen, interner Konflikt,
+  externer iCal-Konflikt (via `http_client.mock_response_factory`), stornierte
+  Buchung blockiert nicht, Validierungsfehler (400/404).
+- `tests/Integration/Command/SyncCalendarsCommandTest.php` – Cron-Import:
+  echte Buchung aus iCal-Feed in der DB, Idempotenz (keine Dubletten),
+  kaputter Feed importiert nichts, Skip bei kürzlich synchronisierten
+  Zimmern, unbekannte Raum-ID.
+- iCal-HTTP-Antworten werden im Test-Env global über
+  `framework.http_client.mock_response_factory` deterministisch geliefert
+  (`App\Tests\HttpMock\IcalMockResponseFactory`, URLs mit „error"
+  antworten mit HTTP 500).
 - `tests/Controller/*` – Auth (JWT/Refresh), Captcha (GD), Contact (inkl.
   Mailer-Exception), Kategorien, Posts.
 
@@ -111,6 +130,10 @@ Wichtige Test-Cluster:
 | 10 | PHP-8.4-Deprecation (implizit nullable Parameter) | Explizit `?AuthenticationException` |
 | 11 | Zwei Buchungs-Integrationstests und der Mailer-Exception-Test waren skipped | Aktiviert/repariert; neue Tests für iCal-Konflikt-Erkennung ergänzt |
 | 12 | PHPStan: 65 Fehler | Reale Fehler behoben; Baseline-Config `phpstan.dist.neon` (annotierungs-basierte Muster dokumentiert ignoriert) |
+| 13 | `Room`-Entity hatte keine Serializer-`Groups` → `GET /api/rooms` und `GET /api/rooms/{id}` lieferten leere Objekte | `#[Groups(['api'])]` auf id, name, slug, capacity, basePrice, isActive |
+| 14 | Routenkonflikt: `/api/rooms/{id}` schluckte `/api/rooms/available` (500er) | UUID-Requirements auf `{id}`-Routen |
+| 15 | `bcmul()` ohne ext-bcmath → `GET /api/rooms/available` crash (HTTP 500) | Float-Arithmetik mit `sprintf('%.2F', …)` |
+| 16 | sabre liefert `DateTimeImmutable`, Buchungs-Spalten sind mutable `date` → iCal-Import schlug beim Flush fehl | `DateTime::createFromInterface()` beim Import |
 
 ---
 

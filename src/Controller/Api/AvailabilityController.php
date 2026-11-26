@@ -108,7 +108,7 @@ class AvailabilityController extends AbstractController
             ]
         )
     )]
-    #[Route('/rooms/{id}/availability', methods: ['GET'])]
+    #[Route('/rooms/{id}/availability', methods: ['GET'], requirements: ['id' => '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'])]
     public function checkAvailability(string $id, Request $request): JsonResponse
     {
         // 1. Find room
