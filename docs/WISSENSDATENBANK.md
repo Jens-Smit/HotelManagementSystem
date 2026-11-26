@@ -77,13 +77,13 @@ Tests abgesichert (`testBookingAdjacentDatesDoNotConflict`).
 
 ## 4. Qualität / Testabdeckung
 
-- **145 Tests, 468 Assertions – alle grün, keine Skips**
+- **216 Tests, 654 Assertions – alle grün, keine Skips**
   (`php bin/phpunit`).
-- **Zeilenabdeckung (Coverage): 73,2 %** (Methods 60,6 %, Klassen 32,6 %),
+- **Zeilenabdeckung (Coverage): 90,95 %** (Methods 77,7 %, Klassen 51,2 %),
   gemessen mit Xdebug – Kernfunktionen deutlich höher:
-  SyncCalendarsCommand 83 %, RoomController 85 %, BookingController 86 %,
-  AvailabilityController 86 %, BookingRepository 100 %,
-  Captcha/Password/Auth 100 %.
+  praktisch alle Kernkomponenten >= 85 %, Repositories und zentrale
+  Services weitgehend 100 % (Booking/Room/PostRepository, Captcha, Password,
+  Auth, Fixtures, FileSecurity, AuditLogger).
 - **PHPStan Level 6: 0 Fehler** (`vendor/bin/phpstan analyse`).
 - CI: `.github/workflows/tests.yml` (PHP 8.2 + MySQL 8, Migrations, Fixtures,
   JWT-Keypair, PHPUnit).
@@ -102,6 +102,17 @@ Wichtige Test-Cluster:
   Verfügbarkeits-API: freier Zeitraum mit Preisen, interner Konflikt,
   externer iCal-Konflikt (via `http_client.mock_response_factory`), stornierte
   Buchung blockiert nicht, Validierungsfehler (400/404).
+- `tests/Unit/Service/` – Vollständige Unit-Abdeckung für BookingService
+  (alle Fehlercodes inkl. SYSTEM_ERROR/CONCURRENT_MODIFICATION, fail-open),
+  AvailabilityService, FileSecurityService (Upload-Sicherheit: MIME-Spoofing,
+  Größenlimits, Pfad-Traversal), AuditLoggerService und AppCustomAuthenticator/
+  JwtTokenAuthenticator (Cookie-Handling, Token-Fehler).
+- `tests/Unit/EventListener/SecurityListenerTest.php` – Exception-Listener
+  (kein Stacktrace-Leak in prod), Security-Header (HTTPS-Redirect, HSTS).
+- `tests/Integration/Controller/ApiEdgeCasesTest.php` – INVALID_JSON,
+  INVALID_DATE_FORMAT, Register (inkl. Duplikat), ungültiges Token, Health.
+- `tests/Integration/Controller/HealthAndUserRepositoryTest.php` –
+  Health-Check unhealthy-Zweig (DB-Fehler → 503), upgradePassword.
 - `tests/Integration/Command/SyncCalendarsCommandTest.php` – Cron-Import:
   echte Buchung aus iCal-Feed in der DB, Idempotenz (keine Dubletten),
   kaputter Feed importiert nichts, Skip bei kürzlich synchronisierten

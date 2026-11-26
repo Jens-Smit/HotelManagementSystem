@@ -23,7 +23,7 @@ class AvailabilityService
     ): array {
         $result = [
             'available' => true,
-            'room_id' => $room->getId()->toRfc4122(),
+            'room_id' => $room->getId()?->toRfc4122(),
             'room_name' => $room->getName(),
             'start_date' => $start->format('Y-m-d'),
             'end_date' => $end->format('Y-m-d'),
@@ -32,7 +32,7 @@ class AvailabilityService
 
         // 1. Check internal database
         $conflicts = $this->bookingRepository->findConflicts(
-            $room->getId()->toRfc4122(),
+            $room->getId()?->toRfc4122(),
             $start,
             $end
         );
