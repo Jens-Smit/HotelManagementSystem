@@ -2,7 +2,6 @@
 
 namespace App\Entity;
 
-use App\Enum\BookingSource;
 use App\Enum\BookingStatus;
 use App\Repository\BookingRepository;
 use Doctrine\ORM\Mapping as ORM;
@@ -103,8 +102,9 @@ class Booking
     )]
     private string $totalPrice;
 
-    #[ORM\Column(type: 'string', length: 20, enumType: BookingSource::class)]
+    #[ORM\Column(type: 'string', length: 20)]
     #[Assert\NotBlank]
+    #[Assert\Choice(choices: ['website', 'booking_com', 'homeaway', 'manual'])]
     #[OA\Property(
         description: "Quelle der Buchung",
         enum: ['website', 'booking_com', 'homeaway', 'manual'],
@@ -112,7 +112,7 @@ class Booking
     )]
     private string $source;
 
-    #[ORM\Column(type: 'string', length: 20, enumType: BookingStatus::class)]
+    #[ORM\Column(type: 'string', length: 20)]
     #[Assert\NotBlank]
     #[OA\Property(
         description: "Status der Buchung",

@@ -38,8 +38,8 @@ class BookingService
             }
 
             // 2. Parse dates
-            $startDate = new \DateTimeImmutable($request->startDate);
-            $endDate = new \DateTimeImmutable($request->endDate);
+            $startDate = new \DateTime($request->startDate);
+            $endDate = new \DateTime($request->endDate);
 
             // 3. Check internal database conflicts
             $conflicts = $this->bookingRepository->findConflicts(
@@ -76,8 +76,8 @@ class BookingService
             }
 
             // 5. Calculate total price
-            $nights = $startDate->diff($endDate)->days;
-            $totalPrice = (string) ($room->getBasePrice() * $nights);
+            $nights = (int) $startDate->diff($endDate)->days;
+            $totalPrice = (string) ((float) $room->getBasePrice() * $nights);
 
             // 6. Create booking with transaction + optimistic locking
             return $this->createBookingTransaction($room, $request, $startDate, $endDate, $totalPrice);
@@ -198,7 +198,7 @@ class BookingService
 
             return new BookingResponse(
                 success: true,
-                bookingId: $booking->getId(),
+                bookingId: $booking->getId()?->toRfc4122(),
                 bookingHash: $booking->getBookingHash(),
                 totalPrice: (float) $totalPrice,
                 message: 'Booking confirmed. Confirmation email sent.'

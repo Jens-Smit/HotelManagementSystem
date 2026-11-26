@@ -165,7 +165,7 @@ class AvailabilityController extends AbstractController
             $nights = $startDate->diff($endDate)->days;
             $basePrice = $room->getBasePrice();
             $result['price_per_night'] = $basePrice;
-            $result['total_price'] = $basePrice * (int) $nights;
+            $result['total_price'] = (float) $basePrice * (int) $nights;
             $result['nights'] = $nights;
         }
 

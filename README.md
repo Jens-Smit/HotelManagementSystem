@@ -128,7 +128,7 @@ Check room availability.
 }
 ```
 
-Full API documentation: [docs/api.md](docs/api.md)
+Full API documentation: [docs/api_dokumentation.md](docs/api_dokumentation.md) · [docs/openapi.yaml](docs/openapi.yaml)
 
 ## Architecture
 
@@ -149,10 +149,16 @@ See [docs/pms_architecture.md](docs/pms_architecture.md) for detailed architectu
 4. Periodic background sync (every 15 min)
 5. Manual blocking capability
 
+## Project Knowledge Base
+
+A compact knowledge base covering architecture, overbooking prevention,
+quality status and all fixes is available in **[docs/WISSENSDATENBANK.md](docs/WISSENSDATENBANK.md)**
+(German).
+
 ## Testing
 
 ```bash
-# Run all tests
+# Run all tests (115 tests, all green)
 php bin/phpunit
 
 # Run static analysis

@@ -1,0 +1,158 @@
+# Wissensdatenbank – Hotel-Management-System (PMS)
+
+Stand: November 2026 · Version 1.0.x · Status: **ready to publish**
+
+Diese Wissensdatenbank fasst das gesamte Projektwissen kompakt zusammen und ist
+der Einstiegspunkt für alle weiteren Dokumente (siehe [INDEX.md](INDEX.md)).
+
+---
+
+## 1. Was ist das Projekt?
+
+Ein **Property-Management-System (PMS) für kleine Beherbergungsbetriebe**
+(Hotels, Pensionen, Fewos, B&Bs) auf Basis von **Symfony 7.3 / PHP 8.2+**.
+
+Das System verbindet drei Welten in einer Plattform:
+
+1. **Website / Direktbuchung** – die Betriebe betreiben ihre Gästewebsite
+   direkt über die Plattform (Blog/CMS für Seiten, öffentliche API für die
+   Buchungsmaske).
+2. **Reservierungsverwaltung** – alle Buchungen (Website, Booking.com,
+   HomeAway/FeWo-direkt) werden zentral in einem Dashboard verwaltet.
+3. **iCal-Synchronisation** – Buchungen von externen Portalen werden per iCal
+   importiert und bei jeder Neubuchung in Echtzeit gegengeprüft.
+
+**Zentrale Anforderung: Doppelbuchungen müssen ausgeschlossen sein.**
+
+---
+
+## 2. Architektur in Kürze
+
+| Baustein | Umsetzung |
+|---|---|
+| Framework | Symfony 7.3, PHP 8.2+ |
+| Datenbank | PostgreSQL 13+ / MySQL 8 (Testbetrieb: SQLite) |
+| ORM | Doctrine ORM 3 + Migrations |
+| Auth | JWT (lexik) + Refresh-Tokens (gesdinet), Cookie-basiert (`BEARER`) |
+| iCal-Parsing | **sabre/vobject 4** (`VObject\Reader`) |
+| HTTP | Symfony HttpClient (mit injizierbarem `HttpClientInterface`, gut testbar) |
+| API-Doku | Nelmio ApiDoc / OpenAPI (`docs/openapi.yaml`) |
+| Tests | PHPUnit 9 (Unit, Integration, Controller) |
+| Statische Analyse | PHPStan Level 6 – **0 Fehler** |
+
+Kern-Services:
+
+- `src/Service/BookingService.php` – Buchung anlegen, Preise berechnen,
+  interne + externe Konfliktprüfung, Transaktion mit Optimistic Locking.
+- `src/Service/AvailabilityService.php` – Verfügbarkeit (Datenbank + iCal).
+- `src/Service/ICalSyncService.php` – iCal-Import (`syncRoomCalendar`),
+  Echtzeitprüfung (`checkAvailability`), Gastnamen-Extraktion.
+- `src/Command/SyncCalendarsCommand.php` – Cron-Job `app:sync-calendars`
+  (empfohlen: alle 15 Minuten).
+
+---
+
+## 3. Doppelbuchungsschutz (5 Schichten)
+
+1. **Interne DB-Prüfung** – `BookingRepository::findConflicts()` prüft
+   Überschneidungen (`start < requested_end AND end > requested_start`,
+   Status `cancelled` ausgenommen). Antwortet mit HTTP 409
+   (`INTERNAL_CONFLICT`).
+2. **Echtzeit-iCal-Prüfung** – vor jeder Buchung werden die externen
+   Kalender (Booking.com, HomeAway) abgerufen und auf Überschneidung
+   geprüft → HTTP 409 (`EXTERNAL_CONFLICT`). Stornierte Events
+   (`STATUS:CANCELLED`) werden ignoriert.
+3. **Optimistic Locking** – `#[ORM\Version]` auf `Booking::$version`;
+   parallele Schreibzugriffe lösen `OptimisticLockException` →
+   `CONCURRENT_MODIFICATION`.
+4. **Periodischer Sync** – Cron importiert externe Buchungen (Deduplizierung
+   über `external_id` + `source`).
+5. **DB-Constraints** – Unique-Index `(room_id, start_date, end_date,
+   status)` plus Datums-Index für schnelle Konfliktabfragen.
+
+Angrenzende Zeiträume (Check-out = Check-in) sind erlaubt und werden durch
+Tests abgesichert (`testBookingAdjacentDatesDoNotConflict`).
+
+---
+
+## 4. Qualität / Testabdeckung
+
+- **115 Tests, 383 Assertions – alle grün, keine Skips**
+  (`php bin/phpunit`).
+- **PHPStan Level 6: 0 Fehler** (`vendor/bin/phpstan analyse`).
+- CI: `.github/workflows/tests.yml` (PHP 8.2 + MySQL 8, Migrations, Fixtures,
+  JWT-Keypair, PHPUnit).
+
+Wichtige Test-Cluster:
+
+- `tests/Integration/Controller/BookingControllerTest.php` –
+  Buchung erstellen, **Überlappungs-Konflikt (409)**, angrenzende Termine,
+  Validierungsfehler.
+- `tests/Unit/Service/ICalSyncServiceTest.php` – iCal-Parsing (echte
+  sabre-Pipeline mit Mock-HttpClient), Konflikt-Erkennung, freie Zeiträume.
+- `tests/Controller/*` – Auth (JWT/Refresh), Captcha (GD), Contact (inkl.
+  Mailer-Exception), Kategorien, Posts.
+
+---
+
+## 5. Behobene Fehler (finaler Hardening-Durchlauf)
+
+| # | Fehler | Fix |
+|---|---|---|
+| 1 | `ICalSyncService` nutzte die nicht installierte Bibliothek `eluceo/ical` → iCal-Sync wäre in Produktion gecrasht | Komplett auf `sabre/vobject` umgestellt; `checkAvailability(string $url, …)`-Signatur an die Aufrufer angepasst; `HttpClientInterface` injizierbar |
+| 2 | `Booking::$source/$status` mit `enumType`, aber String-Werte → „Attempt to read property 'value' on string", Buchungen schlugen fehl | `enumType` entfernt, `Assert\Choice` für `source` ergänzt |
+| 3 | `DateTimeImmutable` an `date`-Spalten (mutable) → Buchungs-Flush schlug fehl | `BookingService` erzeugt `\DateTime` |
+| 4 | `BookingResponse::$bookingId` erwartete `string`, bekam `Uuid` → 500 bei erfolgreicher Buchung | `toRfc4122()`-Konvertierung |
+| 5 | `findConflicts()` fand keine Konflikte (Uuid-Binding als Text vs. BLOB) → **Doppelbuchungen waren möglich!** | Expliziter Parametertyp `'uuid'` |
+| 6 | `findByHash()` suchte nach nicht existierendem Feld `hash` → Buchungs-Abfrage/Storno kaputt | `bookingHash` verwendet |
+| 7 | `RoomRepository::findByFilters()/countByFilters()` fehlten → `GET /api/rooms` war kaputt | Methoden implementiert (Pagination) |
+| 8 | `AvailabilityService` übergab `Uuid` an `string`-Parameter | `toRfc4122()` |
+| 9 | String-Arithmetik bei Preisberechnung (`basePrice * nights`) | Float-Casts in `BookingService`/`AvailabilityController` |
+| 10 | PHP-8.4-Deprecation (implizit nullable Parameter) | Explizit `?AuthenticationException` |
+| 11 | Zwei Buchungs-Integrationstests und der Mailer-Exception-Test waren skipped | Aktiviert/repariert; neue Tests für iCal-Konflikt-Erkennung ergänzt |
+| 12 | PHPStan: 65 Fehler | Reale Fehler behoben; Baseline-Config `phpstan.dist.neon` (annotierungs-basierte Muster dokumentiert ignoriert) |
+
+---
+
+## 6. Betrieb
+
+```bash
+# Installation
+composer install
+cp .env.example .env.local        # DATABASE_URL etc. anpassen
+php bin/console doctrine:migrations:migrate
+php bin/console lexik:jwt:generate-keypair
+
+# Cron (alle 15 Minuten)
+*/15 * * * * cd /pfad/zum/projekt && php bin/console app:sync-calendars
+```
+
+Gesundheit prüfen: `GET /api/health` · Sync-Status: Spalten
+`rooms.last_sync_booking` / `rooms.last_sync_homeaway`.
+
+Fehlverhalten bei iCal-Ausfällen: aktuell **fail-open** (Buchung wird nicht
+blockiert, Fehler wird geloggt). Über `BOOKING_FAIL_STRATEGY=closed` ist eine
+strikte Variante dokumentiert (siehe [pms_architecture.md](pms_architecture.md)).
+
+---
+
+## 7. Weiterführende Dokumente
+
+| Thema | Dokument |
+|---|---|
+| Übersicht aller Dokumente | [INDEX.md](INDEX.md) |
+| Benutzeranleitung | [benutzerhandbuch.md](benutzerhandbuch.md) |
+| Installation | [installationsanleitung.md](installationsanleitung.md) |
+| API (Referenz) | [api_dokumentation.md](api_dokumentation.md) · [openapi.yaml](openapi.yaml) |
+| Architektur & Überbuchungsschutz | [pms_architecture.md](pms_architecture.md) |
+| Entwickler-Handbuch | [entwicklerdokumentation.md](entwicklerdokumentation.md) |
+| Deployment-Checkliste | [deployment_checklist.md](deployment_checklist.md) |
+| Performance | [performance_testing.md](performance_testing.md) |
+
+## 8. Bekannte Grenzen / Roadmap
+
+- E-Mail-Bestätigung bei Buchungen ist als TODO im `BookingService`
+  vermerkt (Event-Dispatch vorbereitet).
+- Wiederkehrende iCal-Serientermine werden nicht expandiert (in
+  Portal-Feeds üblicherweise nicht relevant).
+- Frontend/Dashboard liegt außerhalb dieses Repos (API-first).

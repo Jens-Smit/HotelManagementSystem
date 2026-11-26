@@ -41,12 +41,50 @@ class BookingControllerTest extends WebTestCase
 
     public function testSuccessfulBookingCreationWithValidData(): void
     {
-        $this->markTestSkipped('Skipped temporarily to focus on main feedback points');
+        $room = $this->createTestRoom();
+
+        $this->createBooking($room, '2030-06-05', '2030-06-10');
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
+
+        $response = json_decode($this->client->getResponse()->getContent(), true);
+        $this->assertTrue($response['success']);
+        $this->assertArrayHasKey('booking_id', $response);
+        $this->assertArrayHasKey('booking_hash', $response);
+        $this->assertEquals(500.0, $response['total_price']);
     }
 
     public function testBookingConflictDetectionWithOverlappingDates(): void
     {
-        $this->markTestSkipped('Skipped temporarily to focus on main feedback points');
+        $room = $this->createTestRoom();
+
+        $this->createBooking($room, '2030-06-05', '2030-06-10');
+        $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
+
+        $this->createBooking($room, '2030-06-08', '2030-06-12');
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_CONFLICT);
+
+        $response = json_decode($this->client->getResponse()->getContent(), true);
+        $this->assertFalse($response['success']);
+        $this->assertEquals('INTERNAL_CONFLICT', $response['error']);
+        $this->assertArrayHasKey('details', $response);
+        $this->assertEquals(1, $response['details']['conflict_count']);
+    }
+
+    public function testBookingAdjacentDatesDoNotConflict(): void
+    {
+        $room = $this->createTestRoom();
+
+        $this->createBooking($room, '2030-06-05', '2030-06-10');
+        $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
+
+        // Check-out day of the first booking is the check-in day of the second (no overlap)
+        $this->createBooking($room, '2030-06-10', '2030-06-14');
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
+        $response = json_decode($this->client->getResponse()->getContent(), true);
+        $this->assertTrue($response['success']);
     }
 
     public function testValidationErrors(): void

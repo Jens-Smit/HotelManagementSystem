@@ -4,6 +4,8 @@ Willkommen in der vollständigen Dokumentation des Hotel-Management-Systems (PMS
 
 ## Dokumentationsübersicht
 
+> **Einstieg & Projektwissen:** [Wissensdatenbank](WISSENSDATENBANK.md) – Kompakter Überblick: Architektur, Doppelbuchungsschutz, Test-/Qualitätsstatus und behobene Fehler.
+
 ### Für Benutzer
 - **[Benutzerhandbuch](benutzerhandbuch.md)**: Anleitung zur Nutzung des Systems für Hotelmitarbeiter
   - Systemübersicht und Hauptfunktionen

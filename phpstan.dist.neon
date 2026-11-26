@@ -2,3 +2,23 @@ parameters:
     level: 6
     paths:
         - src/
+    treatPhpDocTypesAsCertain: false
+    ignoreErrors:
+        -
+            identifier: missingType.iterableValue
+        -
+            message: '#with generic interface Doctrine\\Common\\Collections\\Collection does not specify its types#'
+        -
+            identifier: property.onlyWritten
+        -
+            identifier: empty.variable
+        -
+            identifier: notIdentical.alwaysTrue
+        -
+            message: '#has parameter \$userProvider with generic interface#'
+        # Sabre VObject nutzt magische Properties (DTSTART, DTEND, ...)
+        -
+            message: '#Access to an undefined property Sabre\\VObject#'
+        # Doctrine-IDs werden vom ORM zugewiesen
+        -
+            message: '#is never assigned#'

@@ -32,7 +32,7 @@ class AvailabilityService
 
         // 1. Check internal database
         $conflicts = $this->bookingRepository->findConflicts(
-            $room->getId(),
+            $room->getId()->toRfc4122(),
             $start,
             $end
         );
@@ -44,7 +44,7 @@ class AvailabilityService
             $result['conflict_reason'] = 'internal_booking';
             $result['conflict_details'] = array_map(
                 fn($b) => [
-                    'booking_id' => $b->getId(),
+                    'booking_id' => $b->getId()?->toRfc4122(),
                     'source' => $b->getSource(),
                     'start' => $b->getStartDate()->format('Y-m-d'),
                     'end' => $b->getEndDate()->format('Y-m-d'),

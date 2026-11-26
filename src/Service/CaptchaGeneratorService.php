@@ -102,7 +102,7 @@ class CaptchaGeneratorService
                     ['start' => 0, 'end' => 90],   // Teil 3
                 ];
                 
-                imagefilledarc($partImage, $drawOriginX, $drawOriginY, $arcRadius * 2, $arcRadius * 2, $redArcAngles[$i]['start'], $redArcAngles[$i]['end'], $mainColor, IMG_ARC_PIE);
+                imagefilledarc($partImage, (int) $drawOriginX, (int) $drawOriginY, (int) ($arcRadius * 2), (int) ($arcRadius * 2), $redArcAngles[$i]['start'], $redArcAngles[$i]['end'], $mainColor, IMG_ARC_PIE);
             } elseif ($selectedShape === 'square') {
                 $halfScaledSize = $scaledShapeDrawingSize / 2;
 
@@ -138,7 +138,7 @@ class CaptchaGeneratorService
             $dotDrawOriginX = $mainShapeGlobalCenterX - $partCanvasX;
             $dotDrawOriginY = $mainShapeGlobalCenterY - $partCanvasY;
             
-            imagefilledarc($partImage, $dotDrawOriginX, $dotDrawOriginY, $markerCircleRadius * 2, $markerCircleRadius * 2, $whiteDotAngles[$i]['start'], $whiteDotAngles[$i]['end'], $accentColor, IMG_ARC_PIE);
+            imagefilledarc($partImage, (int) $dotDrawOriginX, (int) $dotDrawOriginY, (int) ($markerCircleRadius * 2), (int) ($markerCircleRadius * 2), $whiteDotAngles[$i]['start'], $whiteDotAngles[$i]['end'], $accentColor, IMG_ARC_PIE);
 
             // Zufällige Rotation für die Anzeige
             $randomRotation = array_shift($possibleRotations);

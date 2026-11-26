@@ -86,7 +86,7 @@ class JwtTokenAuthenticator extends AbstractAuthenticator implements Authenticat
      * Sie wird aufgerufen, wenn supports() false zurückgibt (also KEIN Token gesendet wurde) 
      * und ein geschützter Endpunkt aufgerufen wird. Sie erzeugt den erwarteten 401-Response.
      */
-    public function start(Request $request, AuthenticationException $authException = null): Response
+    public function start(Request $request, ?AuthenticationException $authException = null): Response
     {
         return new JsonResponse([
             'error' => 'Authentifizierung erforderlich',
